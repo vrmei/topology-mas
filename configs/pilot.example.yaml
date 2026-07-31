@@ -1,0 +1,43 @@
+schema_version: 1
+experiment_id: gsm8k_n5_pilot
+
+graph:
+  node_count: 5
+  edge_counts: [4, 8, 12]
+  readout_node: 4
+  max_rounds: 3
+  allow_cycles: true
+  allow_self_loops: false
+
+model:
+  backend: vllm
+  model_name: Qwen/Qwen3-8B
+  base_url: http://127.0.0.1:8000/v1
+  api_key_env: VLLM_API_KEY
+  dtype: bfloat16
+
+execution:
+  seeds: [0, 1, 2]
+  temperature: 0.0
+  max_output_tokens: 768
+  active_node_pruning: true
+  neighbor_message_order: node_id
+
+tasks:
+  - dataset: gsm8k
+    split: test
+    limit: 50
+    oracle_type: numeric
+
+attack:
+  enabled: true
+  attack_readout: false
+  candidate_count: 4
+  require_oracle_verification: true
+  persist_target_error: true
+
+storage:
+  output_dir: runs/gsm8k_n5_pilot
+  save_raw_prompts: true
+  save_raw_outputs: true
+
