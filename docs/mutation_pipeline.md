@@ -27,7 +27,7 @@ Each candidate contains:
 
 - a unique candidate ID;
 - one declared mutated step ID;
-- exactly two to six arithmetic steps;
+- one to ten arithmetic steps, covering the observed GSM8K range without forcing padding;
 - for every step: expression, claimed result, explanation, and mutation flag;
 - for every step: explicit IDs of earlier steps on which its expression depends;
 - a bare numeric final answer;

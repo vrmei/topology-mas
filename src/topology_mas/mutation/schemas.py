@@ -37,7 +37,7 @@ class MutationCandidate(BaseModel):
     candidate_id: str = Field(min_length=1)
     mutation_type: Literal["arithmetic_result"]
     mutated_step_id: str = Field(min_length=1)
-    steps: tuple[ArithmeticStep, ...] = Field(min_length=2, max_length=6)
+    steps: tuple[ArithmeticStep, ...] = Field(min_length=1, max_length=10)
     final_answer: str = Field(min_length=1)
     full_response: str = Field(min_length=1)
 

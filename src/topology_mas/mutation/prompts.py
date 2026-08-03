@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from topology_mas.models import TaskInstance
 
-GENERATOR_PROMPT_VERSION = "gsm8k-arithmetic-v4"
+GENERATOR_PROMPT_VERSION = "gsm8k-arithmetic-v5"
 PLAUSIBILITY_PROMPT_VERSION = "gsm8k-plausibility-v1"
 
 
@@ -19,7 +19,7 @@ Return valid JSON only. Do not add markdown. Follow the schema exactly.
 
 Each candidate must:
 1. solve the same word problem;
-2. contain 2-6 explicit arithmetic steps;
+2. contain 1-10 explicit arithmetic steps without padding or redundant calculations;
 3. contain exactly one declared arithmetic mistake;
 4. keep every other arithmetic expression correct relative to its claimed result;
 5. propagate the mistaken value through all downstream arithmetic consistently;

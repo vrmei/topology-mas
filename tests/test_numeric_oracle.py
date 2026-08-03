@@ -121,9 +121,21 @@ def test_objective_oracle_rejects_disconnected_intermediate_step() -> None:
     assert "do not contribute" in " ".join(result.reasons)
 
 
-def test_candidate_schema_requires_two_to_six_steps() -> None:
+def test_candidate_schema_and_oracle_allow_one_final_mutated_step() -> None:
     payload = make_valid_candidate().model_dump()
     payload["steps"] = payload["steps"][:1]
+    payload["final_answer"] = "42"
+    payload["full_response"] = "Six groups are incorrectly calculated as 42.\n#### 42"
+
+    candidate = MutationCandidate.model_validate(payload)
+    result = NumericMutationOracle().verify(candidate, reference_answer="48")
+
+    assert result.passed is True
+
+
+def test_candidate_schema_rejects_more_than_ten_steps() -> None:
+    payload = make_valid_candidate().model_dump()
+    payload["steps"] = [payload["steps"][0]] * 11
 
     with pytest.raises(ValidationError):
         MutationCandidate.model_validate(payload)
