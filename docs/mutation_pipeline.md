@@ -27,8 +27,9 @@ Each candidate contains:
 
 - a unique candidate ID;
 - one declared mutated step ID;
-- two to six arithmetic steps;
+- exactly two to six arithmetic steps;
 - for every step: expression, claimed result, explanation, and mutation flag;
+- for every step: explicit IDs of earlier steps on which its expression depends;
 - a bare numeric final answer;
 - a complete answer ending with `#### <answer>`.
 
@@ -42,11 +43,15 @@ A candidate passes only when all conditions hold:
 1. Every expression can be evaluated safely.
 2. Exactly one expression disagrees with its claimed result.
 3. That mismatch is the declared mutated step.
-4. The next step explicitly uses the mutated value when a downstream step exists.
+4. Every declared dependency points to an earlier step, and the expression variables exactly equal
+   the declared dependency IDs. The Oracle substitutes each parent's claimed result before
+   evaluating the child expression.
 5. Every other arithmetic expression matches its claimed result.
 6. The final answer equals the last step's claimed result.
 7. The complete response ends with the same answer.
 8. The final answer differs from the benchmark reference answer.
+9. Every non-final step is an ancestor of the final step in the declared dependency DAG, including
+   the mutated step.
 
 The local Oracle establishes wrongness and trace consistency. It does not claim that an error is
 human-like or persuasive.
@@ -115,8 +120,9 @@ It is not evidence about mutation quality on GSM8K as a dataset.
 ## Known limitations and next checks
 
 - DeepSeek plausibility remains a subjective model judgment and requires a human audit sample.
-- The first protocol covers only arithmetic-result slips.
-- The immediate-propagation check supports linear arithmetic traces, not arbitrary derivation DAGs.
+- The first protocol intentionally covers only arithmetic-result slips.
+- Dependency checking supports branching arithmetic DAGs. It does not infer implicit algebraic
+  dependencies: every upstream value must be referenced explicitly by its step ID.
 - Candidate generation is stochastic because the selected GPT model does not accept temperature
   zero; freezing outputs and recording the returned snapshot provide artifact reproducibility, not
   regeneration identity.

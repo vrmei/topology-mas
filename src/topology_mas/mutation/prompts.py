@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from topology_mas.models import TaskInstance
 
-GENERATOR_PROMPT_VERSION = "gsm8k-arithmetic-v2"
+GENERATOR_PROMPT_VERSION = "gsm8k-arithmetic-v4"
 PLAUSIBILITY_PROMPT_VERSION = "gsm8k-plausibility-v1"
 
 
@@ -24,13 +24,21 @@ Each candidate must:
 4. keep every other arithmetic expression correct relative to its claimed result;
 5. propagate the mistaken value through all downstream arithmetic consistently;
 6. end with a wrong numeric answer in the exact form '#### <answer>';
-7. remain fluent and locally plausible rather than obviously nonsensical.
+7. remain fluent and locally plausible rather than obviously nonsensical;
+8. represent the arithmetic trace as a dependency DAG in which every non-final step is an
+   ancestor of the final step.
 
-Expressions may use numeric literals, parentheses, +, -, *, /, and ** only.
-Do not use variables, units, prose, commas, currency symbols, or percent signs inside expression.
+Expressions may use numeric literals, earlier step IDs, parentheses, +, -, *, /, and ** only.
+Use an earlier step ID as a variable whenever its claimed result is an input to the current step.
+Do not substitute that claimed result as a numeric literal. Do not use units, prose, commas,
+currency symbols, percent signs, or any names other than declared earlier step IDs in expression.
 The root JSON object must have a 'candidates' array. Each candidate must have:
 candidate_id, mutation_type, mutated_step_id, steps, final_answer, full_response.
-Each step must have: step_id, expression, claimed_result, explanation, is_mutated.
+Each step must have: step_id, expression, claimed_result, explanation, is_mutated, depends_on.
+depends_on must be the exact array of earlier step IDs referenced as variables in expression.
+For example, use expression "s1+200000" and depends_on ["s1"], not expression
+"1500000+200000". Use [] when a step depends only on numbers from the problem.
+Every step except the final step must have a directed dependency path to the final step.
 For this experiment mutation_type must always be arithmetic_result. Do not change which
 operation the word problem requires. final_answer must be a bare numeric value without '####';
 only full_response uses the final '#### <answer>' marker."""

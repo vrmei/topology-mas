@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import re
+from collections.abc import Mapping
 from fractions import Fraction
 
 from topology_mas.mutation.schemas import (
@@ -11,6 +12,8 @@ from topology_mas.mutation.schemas import (
     ObjectiveOracleResult,
     StepOracleCheck,
 )
+
+OBJECTIVE_ORACLE_VERSION = "gsm8k-numeric-dag-v2"
 
 
 class UnsafeExpressionError(ValueError):
@@ -39,25 +42,42 @@ class SafeArithmeticEvaluator:
     _MAX_ABS_NUMERATOR = 10**18
     _MAX_ABS_EXPONENT = 10
 
-    def evaluate(self, expression: str) -> Fraction:
+    def evaluate(
+        self,
+        expression: str,
+        *,
+        variables: Mapping[str, Fraction] | None = None,
+    ) -> Fraction:
         try:
             tree = ast.parse(expression, mode="eval")
         except SyntaxError as exc:
             raise UnsafeExpressionError("invalid expression syntax") from exc
-        value = self._visit(tree.body)
+        value = self._visit(tree.body, variables or {})
         if abs(value.numerator) > self._MAX_ABS_NUMERATOR:
             raise UnsafeExpressionError("expression result is too large")
         return value
 
-    def _visit(self, node: ast.AST) -> Fraction:
+    @staticmethod
+    def referenced_names(expression: str) -> set[str]:
+        try:
+            tree = ast.parse(expression, mode="eval")
+        except SyntaxError as exc:
+            raise UnsafeExpressionError("invalid expression syntax") from exc
+        return {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
+
+    def _visit(self, node: ast.AST, variables: Mapping[str, Fraction]) -> Fraction:
         if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
             return Fraction(str(node.value))
+        if isinstance(node, ast.Name):
+            if node.id not in variables:
+                raise UnsafeExpressionError(f"undeclared variable: {node.id}")
+            return variables[node.id]
         if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
-            value = self._visit(node.operand)
+            value = self._visit(node.operand, variables)
             return value if isinstance(node.op, ast.UAdd) else -value
         if isinstance(node, ast.BinOp):
-            left = self._visit(node.left)
-            right = self._visit(node.right)
+            left = self._visit(node.left, variables)
+            right = self._visit(node.right, variables)
             if isinstance(node.op, ast.Add):
                 return left + right
             if isinstance(node.op, ast.Sub):
@@ -93,9 +113,24 @@ class NumericMutationOracle:
         checks: list[StepOracleCheck] = []
         mismatched_steps: list[str] = []
 
+        step_by_id = {step.step_id: step for step in candidate.steps}
         for step in candidate.steps:
             try:
-                computed = self._evaluator.evaluate(step.expression)
+                referenced_names = self._evaluator.referenced_names(step.expression)
+                declared_dependencies = set(step.depends_on)
+                if referenced_names != declared_dependencies:
+                    reasons.append(
+                        f"step {step.step_id} expression variables do not exactly match "
+                        "depends_on"
+                    )
+                variables = {
+                    dependency_id: parse_number(step_by_id[dependency_id].claimed_result)
+                    for dependency_id in step.depends_on
+                }
+                computed = self._evaluator.evaluate(
+                    step.expression,
+                    variables=variables,
+                )
                 claimed = parse_number(step.claimed_result)
                 matches = computed == claimed
                 if not matches:
@@ -155,17 +190,27 @@ class NumericMutationOracle:
             except ValueError as exc:
                 reasons.append(f"full_response final marker is not numeric: {exc}")
 
-        mutated_index = next(
-            index
-            for index, step in enumerate(candidate.steps)
-            if step.step_id == candidate.mutated_step_id
-        )
-        if mutated_index < len(candidate.steps) - 1:
-            mutated_value = candidate.steps[mutated_index].claimed_result.strip()
-            downstream_expression = candidate.steps[mutated_index + 1].expression
-            token_pattern = rf"(?<![\d.]){re.escape(mutated_value)}(?![\d.])"
-            if re.search(token_pattern, downstream_expression) is None:
-                reasons.append("the next arithmetic step does not propagate the mutated value")
+        final_step_id = candidate.steps[-1].step_id
+        final_ancestors: set[str] = set()
+        pending = list(step_by_id[final_step_id].depends_on)
+        while pending:
+            dependency_id = pending.pop()
+            if dependency_id in final_ancestors:
+                continue
+            final_ancestors.add(dependency_id)
+            pending.extend(step_by_id[dependency_id].depends_on)
+
+        disconnected = set(step_by_id) - final_ancestors - {final_step_id}
+        if disconnected:
+            reasons.append(
+                "steps do not contribute to the final answer: "
+                + ", ".join(sorted(disconnected))
+            )
+        if (
+            candidate.mutated_step_id != final_step_id
+            and candidate.mutated_step_id not in final_ancestors
+        ):
+            reasons.append("the mutated step does not propagate to the final answer")
 
         return ObjectiveOracleResult(
             passed=not reasons,

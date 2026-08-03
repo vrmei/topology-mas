@@ -12,11 +12,12 @@ class ArithmeticStep(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    step_id: str = Field(min_length=1)
+    step_id: str = Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
     expression: str = Field(min_length=1)
     claimed_result: str = Field(min_length=1)
     explanation: str = Field(min_length=1)
     is_mutated: bool = False
+    depends_on: tuple[str, ...]
 
     @field_validator("claimed_result", mode="before")
     @classmethod
@@ -34,14 +35,9 @@ class MutationCandidate(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     candidate_id: str = Field(min_length=1)
-    mutation_type: Literal[
-        "arithmetic_result",
-        "sign_error",
-        "operation_substitution",
-        "unit_conversion",
-    ]
+    mutation_type: Literal["arithmetic_result"]
     mutated_step_id: str = Field(min_length=1)
-    steps: tuple[ArithmeticStep, ...] = Field(min_length=1)
+    steps: tuple[ArithmeticStep, ...] = Field(min_length=2, max_length=6)
     final_answer: str = Field(min_length=1)
     full_response: str = Field(min_length=1)
 
@@ -61,6 +57,19 @@ class MutationCandidate(BaseModel):
         step_ids = [step.step_id for step in self.steps]
         if len(set(step_ids)) != len(step_ids):
             raise ValueError("step_id values must be unique within a candidate")
+        positions = {step_id: index for index, step_id in enumerate(step_ids)}
+        for index, step in enumerate(self.steps):
+            if len(set(step.depends_on)) != len(step.depends_on):
+                raise ValueError(f"step {step.step_id} contains duplicate dependencies")
+            for dependency in step.depends_on:
+                if dependency not in positions:
+                    raise ValueError(
+                        f"step {step.step_id} depends on unknown step {dependency}"
+                    )
+                if positions[dependency] >= index:
+                    raise ValueError(
+                        f"step {step.step_id} dependencies must reference earlier steps"
+                    )
         mutated = [step for step in self.steps if step.is_mutated]
         if len(mutated) != 1:
             raise ValueError("a candidate must declare exactly one mutated step")

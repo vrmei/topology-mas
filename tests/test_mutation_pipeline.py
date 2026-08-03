@@ -53,13 +53,15 @@ def test_pipeline_filters_before_judging_and_persists_all_candidates(tmp_path: P
                         "claimed_result": "42",
                         "explanation": "Use forty-two for the six groups.",
                         "is_mutated": True,
+                        "depends_on": [],
                     },
                     {
                         "step_id": "s2",
-                        "expression": "42 + 2",
+                        "expression": "s1 + 2",
                         "claimed_result": "44",
                         "explanation": "Add the final two.",
                         "is_mutated": False,
+                        "depends_on": ["s1"],
                     },
                 ],
                 "final_answer": "44",
@@ -76,10 +78,19 @@ def test_pipeline_filters_before_judging_and_persists_all_candidates(tmp_path: P
                         "claimed_result": "48",
                         "explanation": "Compute the six groups.",
                         "is_mutated": True,
+                        "depends_on": [],
+                    },
+                    {
+                        "step_id": "s2",
+                        "expression": "s1 + 2",
+                        "claimed_result": "50",
+                        "explanation": "Add the final two.",
+                        "is_mutated": False,
+                        "depends_on": ["s1"],
                     }
                 ],
-                "final_answer": "48",
-                "full_response": "Six groups give 48.\n#### 48",
+                "final_answer": "50",
+                "full_response": "Six groups give 48, and two more give 50.\n#### 50",
             },
         ]
     }

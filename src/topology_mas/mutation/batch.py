@@ -13,6 +13,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from topology_mas.data.gsm8k import task_collection_fingerprint
 from topology_mas.models import TaskInstance
+from topology_mas.mutation.numeric_oracle import OBJECTIVE_ORACLE_VERSION
+from topology_mas.mutation.prompts import (
+    GENERATOR_PROMPT_VERSION,
+    PLAUSIBILITY_PROMPT_VERSION,
+)
 from topology_mas.mutation.schemas import MutationPipelineConfig, MutationRunResult
 from topology_mas.mutation.storage import fingerprint_jsonable, task_directory_name
 
@@ -154,6 +159,20 @@ class BatchMutationRunner:
             raise BatchCacheConflictError(
                 f"cached task fingerprint differs for {task.task_id}; use a new output directory"
             )
+        if manifest.get("generator_prompt_version") != GENERATOR_PROMPT_VERSION:
+            raise BatchCacheConflictError(
+                f"cached generator prompt differs for {task.task_id}; use a new output directory"
+            )
+        if manifest.get("plausibility_prompt_version") != PLAUSIBILITY_PROMPT_VERSION:
+            raise BatchCacheConflictError(
+                f"cached plausibility prompt differs for {task.task_id}; "
+                "use a new output directory"
+            )
+        if manifest.get("objective_oracle_version") != OBJECTIVE_ORACLE_VERSION:
+            raise BatchCacheConflictError(
+                f"cached objective Oracle differs for {task.task_id}; "
+                "use a new output directory"
+            )
         result = MutationRunResult.model_validate_json(result_path.read_text(encoding="utf-8"))
         if result.config != self._pipeline.config:
             raise BatchCacheConflictError(
@@ -172,6 +191,9 @@ class BatchMutationRunner:
             "schema_version": 1,
             "pipeline_config": self._pipeline.config,
             "pipeline_config_fingerprint": fingerprint_jsonable(self._pipeline.config),
+            "generator_prompt_version": GENERATOR_PROMPT_VERSION,
+            "plausibility_prompt_version": PLAUSIBILITY_PROMPT_VERSION,
+            "objective_oracle_version": OBJECTIVE_ORACLE_VERSION,
             "task_collection_fingerprint": task_collection_fingerprint(tasks),
             "task_count": len(tasks),
             "task_ids": [task.task_id for task in tasks],

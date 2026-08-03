@@ -11,6 +11,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from topology_mas.models import TaskInstance
+from topology_mas.mutation.numeric_oracle import OBJECTIVE_ORACLE_VERSION
 from topology_mas.mutation.prompts import (
     GENERATOR_PROMPT_VERSION,
     PLAUSIBILITY_PROMPT_VERSION,
@@ -67,6 +68,7 @@ class MutationArtifactStore:
             "config": result.config,
             "generator_prompt_version": GENERATOR_PROMPT_VERSION,
             "plausibility_prompt_version": PLAUSIBILITY_PROMPT_VERSION,
+            "objective_oracle_version": OBJECTIVE_ORACLE_VERSION,
             "generator_request_fingerprint": fingerprint_jsonable(result.generator_request),
             "selected_candidate_id": result.selected_candidate_id,
         }
@@ -100,6 +102,9 @@ class MutationArtifactStore:
             {
                 "task": task,
                 "config": config,
+                "generator_prompt_version": GENERATOR_PROMPT_VERSION,
+                "plausibility_prompt_version": PLAUSIBILITY_PROMPT_VERSION,
+                "objective_oracle_version": OBJECTIVE_ORACLE_VERSION,
                 "generator_request": messages,
                 "generator_response": completion.raw_response,
                 "generator_attempts": completion.raw_attempts,
@@ -124,6 +129,9 @@ class MutationArtifactStore:
             {
                 "task": task,
                 "config": config,
+                "generator_prompt_version": GENERATOR_PROMPT_VERSION,
+                "plausibility_prompt_version": PLAUSIBILITY_PROMPT_VERSION,
+                "objective_oracle_version": OBJECTIVE_ORACLE_VERSION,
                 "generator_request": messages,
                 "generator_response": completion.raw_response,
                 "error_type": type(error).__name__,

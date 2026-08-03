@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -43,6 +44,14 @@ def selected_result(task_id: str, config: MutationPipelineConfig) -> MutationRun
                 claimed_result="3",
                 explanation="A local addition slip.",
                 is_mutated=True,
+                depends_on=(),
+            ),
+            ArithmeticStep(
+                step_id="s2",
+                expression="s1 + 0",
+                claimed_result="3",
+                explanation="Carry the intermediate result to the answer.",
+                depends_on=("s1",),
             ),
         ),
         final_answer="3",
@@ -129,3 +138,21 @@ def test_batch_rejects_changed_task_collection_in_same_output_dir(tmp_path: Path
 
     with pytest.raises(BatchCacheConflictError, match="new output directory"):
         runner.run((task(prompt="A changed prompt"),))
+
+
+def test_batch_rejects_cached_result_from_old_oracle_version(tmp_path: Path) -> None:
+    pipeline = FakePipeline(tmp_path)
+    runner = BatchMutationRunner(pipeline, output_dir=tmp_path)
+    runner.run((task(),))
+    task_manifest = (
+        tmp_path
+        / "tasks"
+        / task_directory_name("gsm8k/test/1")
+        / "manifest.json"
+    )
+    manifest = json.loads(task_manifest.read_text(encoding="utf-8"))
+    manifest["objective_oracle_version"] = "old-oracle"
+    task_manifest.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(BatchCacheConflictError, match="objective Oracle"):
+        runner.run((task(),))
