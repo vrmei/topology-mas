@@ -6,9 +6,9 @@ from topology_mas.models import (
     DirectedEdge,
     GraphSpec,
     MessageRecord,
+    NodeTurnRecord,
     OracleStatus,
     RunCondition,
-    NodeTurnRecord,
 )
 
 

@@ -11,9 +11,13 @@ requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Topology MAS contributors" }]
 dependencies = [
+  "httpx>=0.27,<1",
   "pydantic>=2.8,<3",
   "PyYAML>=6.0,<7",
 ]
+
+[project.scripts]
+topology-mas-mutate = "topology_mas.mutation.cli:main"
 
 [project.optional-dependencies]
 dev = [
