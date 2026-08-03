@@ -19,6 +19,21 @@ pytest
 No API credentials are stored in configuration files. Later provider adapters will read secret
 values only from environment variables named by `model.api_key_env`.
 
+## Prepare the pinned GSM8K subsets
+
+The loader downloads the official files at a fixed Git commit, verifies SHA-256 and line counts,
+then makes deterministic calibration and main-study subsets. Raw and prepared data remain local.
+
+```powershell
+topology-mas-prepare-gsm8k `
+  --calibration-count 20 `
+  --main-count 50 `
+  --seed 0
+```
+
+Calibration examples come from the official training split; the topology pilot comes from the
+official test split. See [the GSM8K data card](docs/data_card_gsm8k.md).
+
 ## Offline target-error mutation
 
 The first mutation protocol intentionally supports only one fault family: a single wrong
@@ -42,3 +57,16 @@ python -m topology_mas.mutation.cli `
 
 See [the mutation pipeline documentation](docs/mutation_pipeline.md) for the schema, Oracle rules,
 selection policy, and known limitations.
+
+Run mutation over a prepared task manifest:
+
+```powershell
+topology-mas-mutate-batch `
+  --tasks data/prepared/gsm8k/calibration.jsonl `
+  --output-dir runs/gsm8k-calibration `
+  --candidate-count 8
+```
+
+The output directory is resume-safe. A terminal result—including “no eligible candidate”—is
+cached and never silently regenerated. Changing the tasks or mutation configuration requires a new
+output directory.

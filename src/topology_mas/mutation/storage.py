@@ -31,7 +31,7 @@ def _jsonable(value: Any) -> Any:
     return value
 
 
-def _fingerprint(value: Any) -> str:
+def fingerprint_jsonable(value: Any) -> str:
     encoded = json.dumps(
         _jsonable(value),
         ensure_ascii=False,
@@ -39,6 +39,18 @@ def _fingerprint(value: Any) -> str:
         separators=(",", ":"),
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def task_directory_name(task_id: str) -> str:
+    """Map an arbitrary task identifier to one safe, stable path component."""
+
+    safe_task_id = re.sub(r"[^A-Za-z0-9._-]+", "_", task_id).strip("._")
+    if not safe_task_id:
+        raise ValueError("task_id does not contain a usable path component")
+    if safe_task_id != task_id:
+        suffix = hashlib.sha256(task_id.encode("utf-8")).hexdigest()[:12]
+        return f"{safe_task_id}-{suffix}"
+    return safe_task_id
 
 
 class MutationArtifactStore:
@@ -51,11 +63,11 @@ class MutationArtifactStore:
 
         manifest = {
             "task": task,
-            "task_fingerprint": _fingerprint(task),
+            "task_fingerprint": fingerprint_jsonable(task),
             "config": result.config,
             "generator_prompt_version": GENERATOR_PROMPT_VERSION,
             "plausibility_prompt_version": PLAUSIBILITY_PROMPT_VERSION,
-            "generator_request_fingerprint": _fingerprint(result.generator_request),
+            "generator_request_fingerprint": fingerprint_jsonable(result.generator_request),
             "selected_candidate_id": result.selected_candidate_id,
         }
         self._write_json(task_dir / "manifest.json", manifest)
@@ -121,10 +133,7 @@ class MutationArtifactStore:
         return task_dir
 
     def _task_dir(self, task: TaskInstance) -> Path:
-        safe_task_id = re.sub(r"[^A-Za-z0-9._-]+", "_", task.task_id).strip("._")
-        if not safe_task_id:
-            raise ValueError("task_id does not contain a usable path component")
-        return self._root / safe_task_id
+        return self._root / task_directory_name(task.task_id)
 
     @staticmethod
     def _write_json(path: Path, value: Any) -> None:

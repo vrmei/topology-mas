@@ -11,6 +11,7 @@ venv/
 !.env.example
 artifacts/
 runs/
+data/raw/
+data/prepared/
 dist/
 build/
-

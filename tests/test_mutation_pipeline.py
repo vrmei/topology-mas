@@ -3,7 +3,7 @@ from pathlib import Path
 from topology_mas.models import TaskInstance
 from topology_mas.mutation.pipeline import MutationPipeline
 from topology_mas.mutation.schemas import MutationPipelineConfig
-from topology_mas.mutation.storage import MutationArtifactStore
+from topology_mas.mutation.storage import MutationArtifactStore, task_directory_name
 from topology_mas.providers import JSONCompletion
 
 
@@ -122,7 +122,7 @@ def test_pipeline_filters_before_judging_and_persists_all_candidates(tmp_path: P
     assert result.selected_candidate_id == "c01"
     assert result.evaluations[0].plausibility.overall_score == 0.825
     assert adversarial.target_answer == "44"
-    task_dir = tmp_path / "gsm8k_test_1"
+    task_dir = tmp_path / task_directory_name(task.task_id)
     assert (task_dir / "manifest.json").exists()
     assert (task_dir / "generator_response.json").exists()
     assert (task_dir / "candidates" / "c01.json").exists()

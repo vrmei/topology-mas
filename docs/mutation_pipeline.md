@@ -93,6 +93,11 @@ Artifacts include requested and returned model names, raw API responses, token u
 versions, task and request fingerprints, objective checks, plausibility dimensions, processing
 errors, and the selected candidate ID. API keys and authorization headers are never written.
 
+The batch runner adds a task-collection manifest, append-only progress log, per-invocation outcomes,
+and aggregate summary. A completed task with no eligible candidate is a terminal observation, not a
+reason to sample repeatedly until a candidate passes. Re-running the same command reads its cache;
+regeneration requires a deliberately different output directory.
+
 ## Verified provider behavior
 
 On 2026-08-03, OhMyGPT returned `gpt-5.6-sol-2026-07-09` for the generator alias and
