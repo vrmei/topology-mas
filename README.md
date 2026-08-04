@@ -70,3 +70,22 @@ topology-mas-mutate-batch `
 The output directory is resume-safe. A terminal result—including “no eligible candidate”—is
 cached and never silently regenerated. Changing the tasks or mutation configuration requires a new
 output directory.
+
+## Sample controlled directed topologies
+
+Sample 20 distinct labeled graphs with five nodes, eight directed edges, readout node 4, and at
+most three communication hops to readout:
+
+```powershell
+topology-mas-sample-graphs `
+  --node-count 5 `
+  --edge-count 8 `
+  --readout-node 4 `
+  --max-rounds 3 `
+  --graph-count 20 `
+  --seed 0 `
+  --output-dir data/prepared/graphs/n5_m8_t3_seed0
+```
+
+The sampler has no performance reward. It proposes fixed-edge graphs and conditions only on
+readout reachability and round depth. See [the topology sampling protocol](docs/topology_sampling.md).
