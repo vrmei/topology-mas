@@ -3,9 +3,10 @@
 Controlled experiments for separating graph-structural effects from LLM update dynamics in
 multi-agent systems.
 
-The repository is being built incrementally. It currently contains validated experiment records
-and an auditable, offline GSM8K target-error mutation pipeline. Graph sampling, MAS execution,
-classical baselines, and analysis will be added as separate modules.
+The repository is being built incrementally. It currently contains validated experiment records,
+an auditable offline GSM8K target-error mutation pipeline, constrained graph sampling, and a
+provider-neutral synchronous MAS execution kernel. Provider adapters, classical baselines, and
+analysis will be added as separate modules.
 
 ## Development setup
 
@@ -89,3 +90,10 @@ topology-mas-sample-graphs `
 
 The sampler has no performance reward. It proposes fixed-edge graphs and conditions only on
 readout reachability and round depth. See [the topology sampling protocol](docs/topology_sampling.md).
+
+## Execute a graph synchronously
+
+The execution kernel enforces round snapshots, one-edge-per-round delivery, a homogeneous update
+prompt, deterministic per-node seeds, target-error replay, and readout-cone pruning. It currently
+depends on a narrow `TextGenerator` protocol; the next module will add the real vLLM-compatible
+adapter and experiment runner. See [the execution protocol](docs/execution_protocol.md).

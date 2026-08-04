@@ -156,6 +156,8 @@ class NodeTurnRecord(BaseModel):
     node_id: int = Field(ge=0)
     incoming_message_ids: tuple[str, ...] = ()
     previous_raw_output: str | None = None
+    prompt_messages: tuple[dict[str, str], ...] = ()
+    generation_seed: int | None = None
     raw_output: str
     parsed_answer: str | None = None
     answer_state: AnswerState = AnswerState.UNPARSED
@@ -164,6 +166,8 @@ class NodeTurnRecord(BaseModel):
     input_tokens: int | None = Field(default=None, ge=0)
     output_tokens: int | None = Field(default=None, ge=0)
     latency_ms: float | None = Field(default=None, ge=0.0)
+    model_name: str | None = None
+    finish_reason: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
@@ -173,4 +177,3 @@ class NodeTurnRecord(BaseModel):
         if self.condition is RunCondition.ATTACK and self.attack_node is None:
             raise ValueError("attack records must specify attack_node")
         return self
-
