@@ -95,5 +95,7 @@ readout reachability and round depth. See [the topology sampling protocol](docs/
 
 The execution kernel enforces round snapshots, one-edge-per-round delivery, a homogeneous update
 prompt, deterministic per-node seeds, target-error replay, and readout-cone pruning. It currently
-depends on a narrow `TextGenerator` protocol; the next module will add the real vLLM-compatible
-adapter and experiment runner. See [the execution protocol](docs/execution_protocol.md).
+depends on a narrow `TextGenerator` protocol. An OpenAI-compatible adapter now connects that
+protocol to vLLM or a gateway without changing execution semantics. See
+[the execution protocol](docs/execution_protocol.md) and
+[the model-adapter protocol](docs/model_adapter.md).
