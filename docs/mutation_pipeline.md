@@ -103,6 +103,23 @@ and aggregate summary. A completed task with no eligible candidate is a terminal
 reason to sample repeatedly until a candidate passes. Re-running the same command reads its cache;
 regeneration requires a deliberately different output directory.
 
+The batch runner supports bounded task-level concurrency through `--max-workers`. Workers share
+the provider client but write disjoint task directories. Only one batch process may target a given
+output directory at a time.
+
+After a batch completes, audit it and materialize the frozen selected-answer index:
+
+```powershell
+topology-mas-audit-mutations `
+  --mutation-dir runs/mutations-gsm8k-pilot100-seed0-v1
+```
+
+The audit validates the collection manifest and all declared `result.json` files, recomputes the
+aggregate counts, checks every selection against the preregistered eligibility rule, and writes
+`selection-index/audit.json` plus `selection-index/selected_adversarial_answers.jsonl` atomically.
+The selected-answer file is the compact artifact consumed by later topology experiments; the full
+per-candidate cache remains the provenance record.
+
 ## Verified provider behavior
 
 On 2026-08-03, OhMyGPT returned `gpt-5.6-sol-2026-07-09` for the generator alias and
@@ -116,6 +133,25 @@ is always recorded.
 The included synthetic task generated four candidates. All four passed the objective Oracle; one
 passed the preregistered plausibility rule and was selected. This validates pipeline execution only.
 It is not evidence about mutation quality on GSM8K as a dataset.
+
+## First 100-task mutation batch
+
+The first deterministic sample of 100 official GSM8K test tasks was mutated with eight candidates
+per task, `gpt-5.6-sol` as generator, and `deepseek-chat` as the plausibility Oracle. The canonical
+post-run audit found:
+
+- 100 task results and no task-level errors;
+- 800 generated candidates, all passing the deterministic objective Oracle;
+- 131 candidates passing the full plausibility rule;
+- 64 tasks with a frozen selected target error;
+- 36 terminal `no_candidate` tasks;
+- 14 candidate-level plausibility-processing errors already retained in their task artifacts.
+
+The frozen selected-answer index has SHA-256 fingerprint
+`6cd56124ffb51eacb64792fb5a9401979353360e4b4ab50e7e38300079b08872`.
+These are 100 attempted mutations, not 100 accepted mutations. Reaching 100 accepted tasks requires
+a separately declared retry or expansion policy; the current protocol does not silently resample
+failed tasks.
 
 ## Known limitations and next checks
 

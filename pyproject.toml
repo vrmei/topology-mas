@@ -19,6 +19,7 @@ dependencies = [
 [project.scripts]
 topology-mas-mutate = "topology_mas.mutation.cli:main"
 topology-mas-mutate-batch = "topology_mas.mutation.batch_cli:main"
+topology-mas-audit-mutations = "topology_mas.mutation.audit_cli:main"
 topology-mas-prepare-gsm8k = "topology_mas.data.prepare_gsm8k:main"
 topology-mas-sample-graphs = "topology_mas.topology.cli:main"
 topology-mas-generate-round-zero = "topology_mas.execution.round_zero_cli:main"

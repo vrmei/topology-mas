@@ -1,9 +1,10 @@
-"""Sequential, resumable batch mutation with strict cache identity checks."""
+"""Resumable batch mutation with strict cache identity checks."""
 
 from __future__ import annotations
 
 import json
 from collections.abc import Iterable
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
@@ -83,11 +84,15 @@ class BatchMutationRunner:
         *,
         output_dir: str | Path,
         fail_fast: bool = False,
+        max_workers: int = 1,
     ) -> None:
+        if max_workers < 1:
+            raise ValueError("max_workers must be at least 1")
         self._pipeline = pipeline
         self._output_dir = Path(output_dir)
         self._tasks_dir = self._output_dir / "tasks"
         self._fail_fast = fail_fast
+        self._max_workers = max_workers
 
     def run(
         self,
@@ -100,33 +105,76 @@ class BatchMutationRunner:
         self._tasks_dir.mkdir(parents=True, exist_ok=True)
         self._validate_or_create_manifest(task_list, source_path=source_path)
 
-        outcomes: list[BatchTaskOutcome] = []
         progress_path = self._output_dir / "progress.jsonl"
         with progress_path.open("a", encoding="utf-8", newline="\n") as progress:
-            for task in task_list:
-                try:
-                    outcome = self._run_one(task)
-                except BatchCacheConflictError:
-                    raise
-                except Exception as exc:
-                    outcome = BatchTaskOutcome(
-                        task_id=task.task_id,
-                        disposition=BatchDisposition.ERROR,
-                        error_type=type(exc).__name__,
-                        error_message=str(exc),
-                    )
-                    self._append_progress(progress, outcome)
-                    outcomes.append(outcome)
-                    if self._fail_fast:
-                        raise
-                    continue
-                self._append_progress(progress, outcome)
-                outcomes.append(outcome)
+            outcomes = self._run_tasks(task_list, progress)
 
         summary = self._summarize(outcomes)
         self._write_json(self._output_dir / "outcomes.json", outcomes)
         self._write_json(self._output_dir / "summary.json", summary)
         return tuple(outcomes), summary
+
+    def _run_tasks(
+        self,
+        tasks: tuple[TaskInstance, ...],
+        progress: TextIO,
+    ) -> list[BatchTaskOutcome]:
+        if self._max_workers == 1:
+            return [self._complete_one(task, progress) for task in tasks]
+
+        ordered: list[BatchTaskOutcome | None] = [None] * len(tasks)
+        with ThreadPoolExecutor(max_workers=self._max_workers) as executor:
+            futures: dict[Future[BatchTaskOutcome], tuple[int, TaskInstance]] = {
+                executor.submit(self._run_one, task): (index, task)
+                for index, task in enumerate(tasks)
+            }
+            for future in as_completed(futures):
+                index, task = futures[future]
+                try:
+                    outcome = future.result()
+                except BatchCacheConflictError:
+                    for pending in futures:
+                        pending.cancel()
+                    raise
+                except Exception as exc:
+                    outcome = self._error_outcome(task, exc)
+                    if self._fail_fast:
+                        for pending in futures:
+                            pending.cancel()
+                        self._append_progress(progress, outcome)
+                        raise
+                ordered[index] = outcome
+                self._append_progress(progress, outcome)
+        if any(outcome is None for outcome in ordered):
+            raise RuntimeError("parallel mutation ended without every task outcome")
+        return [outcome for outcome in ordered if outcome is not None]
+
+    def _complete_one(
+        self,
+        task: TaskInstance,
+        progress: TextIO,
+    ) -> BatchTaskOutcome:
+        try:
+            outcome = self._run_one(task)
+        except BatchCacheConflictError:
+            raise
+        except Exception as exc:
+            outcome = self._error_outcome(task, exc)
+            self._append_progress(progress, outcome)
+            if self._fail_fast:
+                raise
+            return outcome
+        self._append_progress(progress, outcome)
+        return outcome
+
+    @staticmethod
+    def _error_outcome(task: TaskInstance, exc: Exception) -> BatchTaskOutcome:
+        return BatchTaskOutcome(
+            task_id=task.task_id,
+            disposition=BatchDisposition.ERROR,
+            error_type=type(exc).__name__,
+            error_message=str(exc),
+        )
 
     def _run_one(self, task: TaskInstance) -> BatchTaskOutcome:
         cached = self._load_cached(task)

@@ -32,6 +32,10 @@ def task(prompt: str = "What is one plus one?") -> TaskInstance:
     )
 
 
+def task_with_id(task_id: str) -> TaskInstance:
+    return task().model_copy(update={"task_id": task_id})
+
+
 def selected_result(task_id: str, config: MutationPipelineConfig) -> MutationRunResult:
     candidate = MutationCandidate(
         candidate_id="c01",
@@ -156,3 +160,23 @@ def test_batch_rejects_cached_result_from_old_oracle_version(tmp_path: Path) -> 
 
     with pytest.raises(BatchCacheConflictError, match="objective Oracle"):
         runner.run((task(),))
+
+
+def test_parallel_batch_preserves_input_order_and_caches_every_task(
+    tmp_path: Path,
+) -> None:
+    tasks = tuple(task_with_id(f"task-{index}") for index in range(6))
+    pipeline = FakePipeline(tmp_path)
+    runner = BatchMutationRunner(pipeline, output_dir=tmp_path, max_workers=3)
+
+    outcomes, summary = runner.run(tasks)
+    resumed, resumed_summary = runner.run(tasks)
+
+    assert [outcome.task_id for outcome in outcomes] == [item.task_id for item in tasks]
+    assert set(pipeline.calls) == {item.task_id for item in tasks}
+    assert summary.generated_selected == 6
+    assert resumed_summary.cached_selected == 6
+    assert all(
+        outcome.disposition is BatchDisposition.CACHED_SELECTED
+        for outcome in resumed
+    )

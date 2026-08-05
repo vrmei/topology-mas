@@ -24,6 +24,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--plausibility-model", default="deepseek-chat")
     parser.add_argument("--candidate-count", type=int, default=8)
     parser.add_argument("--timeout-seconds", type=float, default=180.0)
+    parser.add_argument("--max-workers", type=int, default=1)
     parser.add_argument("--fail-fast", action="store_true")
     return parser
 
@@ -51,6 +52,7 @@ def main() -> None:
             pipeline,
             output_dir=args.output_dir,
             fail_fast=args.fail_fast,
+            max_workers=args.max_workers,
         )
         _, summary = runner.run(tasks, source_path=args.tasks)
     print(json.dumps(summary.model_dump(mode="json"), indent=2))
