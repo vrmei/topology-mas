@@ -106,7 +106,7 @@ Generate graph-independent round-zero answers before the topology runs:
 topology-mas-generate-round-zero `
   --tasks data/prepared/gsm8k/main.jsonl `
   --output-dir runs/round-zero/pilot-v1 `
-  --node-count 5 `
+  --replica-count 5 `
   --seeds 0,1,2 `
   --model Qwen/Qwen3-8B `
   --expected-returned-model Qwen/Qwen3-8B `
@@ -114,5 +114,6 @@ topology-mas-generate-round-zero `
   --api-key-env VLLM_API_KEY
 ```
 
-Each task-node-seed answer is atomically cached and later reused across graph conditions. See
-[the round-zero cache protocol](docs/round_zero_cache.md).
+Each task-replica-seed answer is atomically cached. A recorded assignment permutation later maps
+anonymous replicas to structural nodes; neither identity is exposed to the model. See [the
+round-zero cache protocol](docs/round_zero_cache.md).

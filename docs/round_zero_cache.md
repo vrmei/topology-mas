@@ -1,19 +1,21 @@
 # Graph-independent round-zero cache
 
-Round zero is generated before graph execution. For each task `q`, node `i`, and experiment seed
-`s`, the cache stores one independent model response:
+Round zero is generated before graph execution. For each task `q`, anonymous replica slot `k`, and
+experiment seed `s`, the cache stores one independent model response:
 
 ```text
-I[q,i,s] = M(q; node_round_seed(q,i,s))
+I[q,k,s] = M(q; round_zero_replica_seed(q,k,s))
 ```
 
-The same collection of node states is later reused across every graph and attack position. This
-preserves node-level sampling diversity while preventing graph comparisons from starting with
-different random answers.
+Here `k` is an independent replica slot, not a structural graph-node identifier. A separate,
+recorded permutation maps replica slots onto graph nodes. The model never sees either identifier.
+The same collection and assignment are later reused across every paired graph and attack position.
+This preserves sampling diversity while preventing graph comparisons from starting with different
+random answers. Multiple assignment seeds can be used to average over initial-state placement.
 
 ## Cache identity
 
-Every record fingerprint includes the complete task, node ID, experiment and generation seeds,
+Every record fingerprint includes the complete task, replica slot, experiment and generation seeds,
 prompt text and version, requested and expected returned model names, temperature, token limit, and
 cache protocol version. `graph_id` is intentionally absent. The collection manifest additionally
 pins the ordered task IDs and task-collection fingerprint.
@@ -49,7 +51,7 @@ the pilot protocol after measuring initial-answer diversity.
 topology-mas-generate-round-zero `
   --tasks data/prepared/gsm8k/main.jsonl `
   --output-dir runs/round-zero/<condition-id> `
-  --node-count 5 `
+  --replica-count 5 `
   --seeds 0,1,2 `
   --model <served-model> `
   --expected-returned-model <pinned-returned-model> `

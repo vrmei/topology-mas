@@ -27,8 +27,8 @@ def build_node_messages(
     sections = [f"PROBLEM:\n{task.prompt}"]
     if previous_output is not None:
         sections.append(f"YOUR_PREVIOUS_SOLUTION:\n{previous_output}")
-    for peer_index, message in enumerate(incoming_messages, start=1):
-        sections.append(f"PEER_MESSAGE_{peer_index}:\n{message.raw_text}")
+    for message in incoming_messages:
+        sections.append(f"<peer_message>\n{message.raw_text}\n</peer_message>")
     if previous_output is None:
         sections.append("Solve independently. No peer messages are available in this round.")
     else:

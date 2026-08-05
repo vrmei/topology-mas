@@ -61,7 +61,8 @@ class ExecutionConfig(BaseModel):
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
     max_output_tokens: int = Field(default=1024, ge=1)
     active_node_pruning: bool = True
-    neighbor_message_order: Literal["node_id", "seeded_shuffle"] = "node_id"
+    neighbor_message_order: Literal["content_hash"] = "content_hash"
+    message_order_seed: int = 0
 
     @model_validator(mode="after")
     def validate_seeds(self) -> ExecutionConfig:
@@ -127,4 +128,3 @@ class ExperimentConfig(BaseModel):
         if not isinstance(payload, dict):
             raise ValueError("configuration root must be a mapping")
         return cls.model_validate(payload)
-

@@ -16,10 +16,10 @@ from topology_mas.execution.answers import classify_numeric_answer, parse_numeri
 from topology_mas.execution.generation import TextGenerator
 from topology_mas.execution.prompts import PROMPT_VERSION, build_node_messages
 from topology_mas.execution.schemas import TextGenerationRequest
-from topology_mas.execution.seeding import node_round_seed, stable_id
+from topology_mas.execution.seeding import round_zero_replica_seed, stable_id
 from topology_mas.models import AnswerState, TaskInstance
 
-ROUND_ZERO_CACHE_VERSION = "round-zero-cache-v1"
+ROUND_ZERO_CACHE_VERSION = "round-zero-cache-v2"
 
 
 class RoundZeroCacheConfig(BaseModel):
@@ -27,7 +27,7 @@ class RoundZeroCacheConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    node_count: int = Field(ge=2)
+    replica_count: int = Field(ge=2)
     seeds: tuple[int, ...] = Field(min_length=1)
     requested_model: str = Field(min_length=1)
     expected_returned_model: str | None = None
@@ -51,7 +51,7 @@ class RoundZeroRecord(BaseModel):
     record_id: str = Field(min_length=1)
     request_fingerprint: str = Field(min_length=64, max_length=64)
     task_id: str = Field(min_length=1)
-    node_id: int = Field(ge=0)
+    replica_slot: int = Field(ge=0)
     experiment_seed: int
     generation_seed: int
     prompt_version: str = Field(min_length=1)
@@ -157,7 +157,7 @@ class RoundZeroCache:
             config=config,
             task_collection_fingerprint=task_collection_fingerprint(tasks),
             task_ids=task_ids,
-            intended_record_count=len(tasks) * config.node_count * len(config.seeds),
+            intended_record_count=len(tasks) * config.replica_count * len(config.seeds),
         )
         if self.manifest_path.exists():
             existing = RoundZeroManifest.model_validate_json(
@@ -171,18 +171,28 @@ class RoundZeroCache:
         _atomic_write_json(self.manifest_path, manifest.model_dump(mode="json"))
         return manifest
 
-    def record_path(self, *, task_id: str, seed: int, node_id: int) -> Path:
+    def record_path(self, *, task_id: str, seed: int, replica_slot: int) -> Path:
         safe_task = task_id.replace("/", "_").replace("\\", "_")
-        return self.root / "records" / safe_task / f"seed_{seed}" / f"node_{node_id}.json"
+        return (
+            self.root
+            / "records"
+            / safe_task
+            / f"seed_{seed}"
+            / f"replica_{replica_slot}.json"
+        )
 
     def load(
         self,
         *,
         task_id: str,
         seed: int,
-        node_id: int,
+        replica_slot: int,
     ) -> RoundZeroRecord | None:
-        path = self.record_path(task_id=task_id, seed=seed, node_id=node_id)
+        path = self.record_path(
+            task_id=task_id,
+            seed=seed,
+            replica_slot=replica_slot,
+        )
         if not path.exists():
             return None
         return RoundZeroRecord.model_validate_json(path.read_text(encoding="utf-8"))
@@ -191,7 +201,7 @@ class RoundZeroCache:
         path = self.record_path(
             task_id=record.task_id,
             seed=record.experiment_seed,
-            node_id=record.node_id,
+            replica_slot=record.replica_slot,
         )
         if path.exists():
             existing = RoundZeroRecord.model_validate_json(path.read_text(encoding="utf-8"))
@@ -225,10 +235,10 @@ class RoundZeroGenerator:
             if task.oracle_type != "numeric":
                 raise ValueError("the first round-zero generator supports numeric tasks only")
             for experiment_seed in self.config.seeds:
-                for node_id in range(self.config.node_count):
+                for replica_slot in range(self.config.replica_count):
                     record, generated = self._generate_one(
                         task=task,
-                        node_id=node_id,
+                        replica_slot=replica_slot,
                         experiment_seed=experiment_seed,
                     )
                     records.append(record)
@@ -244,7 +254,7 @@ class RoundZeroGenerator:
         self,
         *,
         task: TaskInstance,
-        node_id: int,
+        replica_slot: int,
         experiment_seed: int,
     ) -> tuple[RoundZeroRecord, bool]:
         prompt_messages = build_node_messages(
@@ -252,16 +262,15 @@ class RoundZeroGenerator:
             previous_output=None,
             incoming_messages=(),
         )
-        generation_seed = node_round_seed(
+        generation_seed = round_zero_replica_seed(
             experiment_seed=experiment_seed,
             task_id=task.task_id,
-            node_id=node_id,
-            round_index=0,
+            replica_slot=replica_slot,
         )
         identity = {
             "cache_version": ROUND_ZERO_CACHE_VERSION,
             "task": task.model_dump(mode="json"),
-            "node_id": node_id,
+            "replica_slot": replica_slot,
             "experiment_seed": experiment_seed,
             "generation_seed": generation_seed,
             "prompt_version": self.config.prompt_version,
@@ -275,7 +284,7 @@ class RoundZeroGenerator:
         cached = self.cache.load(
             task_id=task.task_id,
             seed=experiment_seed,
-            node_id=node_id,
+            replica_slot=replica_slot,
         )
         if cached is not None:
             if cached.request_fingerprint != fingerprint:
@@ -287,7 +296,11 @@ class RoundZeroGenerator:
         completion = self._generator.generate(
             TextGenerationRequest(
                 request_id=stable_id(
-                    "round0", task.task_id, node_id, experiment_seed, fingerprint
+                    "round0",
+                    task.task_id,
+                    replica_slot,
+                    experiment_seed,
+                    fingerprint,
                 ),
                 messages=prompt_messages,
                 seed=generation_seed,
@@ -303,11 +316,15 @@ class RoundZeroGenerator:
         )
         record = RoundZeroRecord(
             record_id=stable_id(
-                "round0-record", task.task_id, node_id, experiment_seed, fingerprint
+                "round0-record",
+                task.task_id,
+                replica_slot,
+                experiment_seed,
+                fingerprint,
             ),
             request_fingerprint=fingerprint,
             task_id=task.task_id,
-            node_id=node_id,
+            replica_slot=replica_slot,
             experiment_seed=experiment_seed,
             generation_seed=generation_seed,
             prompt_version=self.config.prompt_version,

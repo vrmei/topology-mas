@@ -21,7 +21,8 @@ execution:
   temperature: 0.0
   max_output_tokens: 768
   active_node_pruning: true
-  neighbor_message_order: node_id
+  neighbor_message_order: content_hash
+  message_order_seed: 0
 
 tasks:
   - dataset: gsm8k
@@ -40,4 +41,3 @@ storage:
   output_dir: runs/gsm8k_n5_pilot
   save_raw_prompts: true
   save_raw_outputs: true
-

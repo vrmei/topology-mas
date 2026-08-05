@@ -55,7 +55,8 @@ class ExecutionSettings(BaseModel):
 
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
     max_output_tokens: int = Field(default=768, ge=1)
-    neighbor_message_order: Literal["node_id"] = "node_id"
+    neighbor_message_order: Literal["content_hash"] = "content_hash"
+    message_order_seed: int = 0
     active_node_pruning: Literal[True] = True
 
 
@@ -69,8 +70,12 @@ class RunTrace(BaseModel):
     graph_id: str = Field(min_length=1)
     condition: RunCondition
     attack_node: int | None = Field(default=None, ge=0)
+    initial_assignment_id: str | None = None
+    initial_assignment_seed: int | None = None
+    structural_node_to_replica: tuple[int, ...] | None = None
     seed: int
     prompt_version: str = Field(min_length=1)
+    execution_settings: ExecutionSettings
     schedule: CausalSchedule
     turns: tuple[NodeTurnRecord, ...]
     messages: tuple[MessageRecord, ...]

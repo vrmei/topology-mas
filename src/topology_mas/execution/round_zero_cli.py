@@ -29,7 +29,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tasks", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--node-count", type=int, required=True)
+    parser.add_argument("--replica-count", type=int, required=True)
     parser.add_argument("--seeds", type=_parse_seeds, default=(0,))
     parser.add_argument("--limit", type=int)
     parser.add_argument("--model", required=True)
@@ -51,7 +51,7 @@ def main() -> None:
             raise ValueError("limit must be at least one")
         tasks = tasks[: args.limit]
     config = RoundZeroCacheConfig(
-        node_count=args.node_count,
+        replica_count=args.replica_count,
         seeds=args.seeds,
         requested_model=args.model,
         expected_returned_model=args.expected_returned_model,
@@ -78,7 +78,7 @@ def main() -> None:
             {
                 "output_dir": str(args.output_dir.resolve()),
                 "task_count": len(tasks),
-                "node_count": config.node_count,
+                "replica_count": config.replica_count,
                 "seeds": config.seeds,
                 "record_count": len(records),
                 "generated_count": result.generated_count,

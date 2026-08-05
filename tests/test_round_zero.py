@@ -11,7 +11,7 @@ from topology_mas.execution.round_zero import (
     RoundZeroCacheConflictError,
     RoundZeroGenerator,
 )
-from topology_mas.execution.seeding import node_round_seed
+from topology_mas.execution.seeding import round_zero_replica_seed
 from topology_mas.models import AnswerState, TaskInstance
 
 
@@ -47,7 +47,7 @@ def tasks() -> tuple[TaskInstance, ...]:
 
 def config() -> RoundZeroCacheConfig:
     return RoundZeroCacheConfig(
-        node_count=3,
+        replica_count=3,
         seeds=(0, 1),
         requested_model="model-alias",
         expected_returned_model="pinned-model",
@@ -77,7 +77,7 @@ def test_round_zero_generation_is_graph_independent_and_resume_safe(tmp_path: Pa
     assert all(record.answer_state is AnswerState.CORRECT for record in first)
     assert all(record.prompt_messages == first[0].prompt_messages for record in first)
     assert (tmp_path / "manifest.json").exists()
-    assert len(tuple((tmp_path / "records").rglob("node_*.json"))) == 6
+    assert len(tuple((tmp_path / "records").rglob("replica_*.json"))) == 6
 
 
 def test_round_zero_seed_matches_execution_seed_contract(tmp_path: Path) -> None:
@@ -88,11 +88,10 @@ def test_round_zero_seed_matches_execution_seed_contract(tmp_path: Path) -> None
     ).generate(tasks()).records
 
     for record in records:
-        assert record.generation_seed == node_round_seed(
+        assert record.generation_seed == round_zero_replica_seed(
             experiment_seed=7,
             task_id="task-1",
-            node_id=record.node_id,
-            round_index=0,
+            replica_slot=record.replica_slot,
         )
 
 

@@ -3,15 +3,22 @@
 from __future__ import annotations
 
 from topology_mas.execution.answers import classify_numeric_answer, parse_numeric_answer
+from topology_mas.execution.assignments import InitialStateAssignment
 from topology_mas.execution.generation import TextGenerator
 from topology_mas.execution.prompts import PROMPT_VERSION, build_node_messages
+from topology_mas.execution.round_zero import RoundZeroRecord
 from topology_mas.execution.schemas import (
+    ChatMessage,
     ExecutionSettings,
     RunTrace,
     TextGenerationRequest,
     TextGenerationResult,
 )
-from topology_mas.execution.seeding import node_round_seed, stable_id
+from topology_mas.execution.seeding import (
+    anonymous_message_order_key,
+    online_replica_round_seed,
+    stable_id,
+)
 from topology_mas.models import (
     AdversarialAnswer,
     GraphSpec,
@@ -42,6 +49,8 @@ class SynchronousExecutionEngine:
         seed: int,
         attack_node: int | None = None,
         adversarial_answer: AdversarialAnswer | None = None,
+        round_zero_records: tuple[RoundZeroRecord, ...] | None = None,
+        initial_assignment: InitialStateAssignment | None = None,
     ) -> RunTrace:
         self._validate_run(
             graph=graph,
@@ -49,8 +58,21 @@ class SynchronousExecutionEngine:
             condition=condition,
             attack_node=attack_node,
             adversarial_answer=adversarial_answer,
+            round_zero_records=round_zero_records,
+            initial_assignment=initial_assignment,
         )
         schedule = build_causal_schedule(graph)
+        assigned_initial = self._assigned_initial_records(
+            graph=graph,
+            task=task,
+            seed=seed,
+            round_zero_records=round_zero_records,
+            initial_assignment=initial_assignment,
+        )
+        initial_identity = tuple(
+            (node_id, record.request_fingerprint)
+            for node_id, record in sorted(assigned_initial.items())
+        )
         run_id = stable_id(
             "run",
             graph.graph_id,
@@ -60,6 +82,8 @@ class SynchronousExecutionEngine:
             seed,
             PROMPT_VERSION,
             self.settings.model_dump_json(),
+            initial_assignment.assignment_id if initial_assignment else None,
+            initial_identity,
         )
         target_answer = adversarial_answer.target_answer if adversarial_answer else None
 
@@ -78,22 +102,36 @@ class SynchronousExecutionEngine:
             deliveries = messages_for_round.get(round_index, {})
             for node_id in active_nodes:
                 incoming = tuple(
-                    sorted(deliveries.get(node_id, ()), key=lambda item: item.sender)
+                    sorted(
+                        deliveries.get(node_id, ()),
+                        key=lambda item: anonymous_message_order_key(
+                            order_seed=self.settings.message_order_seed,
+                            task_id=task.task_id,
+                            round_index=round_index,
+                            raw_text=item.raw_text,
+                        ),
+                    )
                 )
                 previous = previous_outputs.get(node_id)
-                prompt_messages = build_node_messages(
+                expected_prompt_messages = build_node_messages(
                     task,
                     previous_output=previous,
                     incoming_messages=incoming,
                 )
-                generation_seed = node_round_seed(
+                stochastic_stream_slot = (
+                    initial_assignment.replica_for_node(node_id)
+                    if initial_assignment is not None
+                    else node_id
+                )
+                generation_seed = online_replica_round_seed(
                     experiment_seed=seed,
                     task_id=task.task_id,
-                    node_id=node_id,
+                    replica_slot=stochastic_stream_slot,
                     round_index=round_index,
                 )
                 is_attacker = condition is RunCondition.ATTACK and node_id == attack_node
                 if is_attacker:
+                    generator_called = False
                     assert adversarial_answer is not None
                     completion = TextGenerationResult(
                         raw_text=adversarial_answer.rationale,
@@ -102,7 +140,34 @@ class SynchronousExecutionEngine:
                         latency_ms=0.0,
                         metadata={"generator_called": False, "attack_replay": True},
                     )
+                    prompt_messages = expected_prompt_messages
+                elif round_index == 0 and assigned_initial:
+                    generator_called = False
+                    cached = assigned_initial[node_id]
+                    prompt_messages = tuple(
+                        ChatMessage.model_validate(message)
+                        for message in cached.prompt_messages
+                    )
+                    if prompt_messages != expected_prompt_messages:
+                        raise ValueError("cached round-zero prompt differs from execution prompt")
+                    generation_seed = cached.generation_seed
+                    completion = TextGenerationResult(
+                        raw_text=cached.raw_output,
+                        model_name=cached.returned_model,
+                        finish_reason=cached.finish_reason,
+                        input_tokens=cached.input_tokens,
+                        output_tokens=cached.output_tokens,
+                        latency_ms=cached.latency_ms,
+                        metadata={
+                            "generator_called": False,
+                            "round_zero_cache_replay": True,
+                            "round_zero_record_id": cached.record_id,
+                            "replica_slot": cached.replica_slot,
+                        },
+                    )
                 else:
+                    generator_called = True
+                    prompt_messages = expected_prompt_messages
                     request = TextGenerationRequest(
                         request_id=f"{run_id}-t{round_index}-n{node_id}",
                         messages=prompt_messages,
@@ -146,15 +211,16 @@ class SynchronousExecutionEngine:
                     finish_reason=completion.finish_reason,
                     metadata={
                         **completion.metadata,
-                        "generator_called": not is_attacker,
+                        "generator_called": generator_called,
                         "prompt_version": PROMPT_VERSION,
+                        "stochastic_stream_slot": stochastic_stream_slot,
                     },
                 )
                 turns.append(turn)
                 round_outputs[node_id] = turn
                 previous_outputs[node_id] = completion.raw_text
 
-                if not is_attacker:
+                if generator_called:
                     if completion.input_tokens is None:
                         input_tokens_complete = False
                     else:
@@ -202,8 +268,20 @@ class SynchronousExecutionEngine:
             graph_id=graph.graph_id,
             condition=condition,
             attack_node=attack_node,
+            initial_assignment_id=(
+                initial_assignment.assignment_id if initial_assignment else None
+            ),
+            initial_assignment_seed=(
+                initial_assignment.assignment_seed if initial_assignment else None
+            ),
+            structural_node_to_replica=(
+                initial_assignment.structural_node_to_replica
+                if initial_assignment
+                else None
+            ),
             seed=seed,
             prompt_version=PROMPT_VERSION,
+            execution_settings=self.settings,
             schedule=schedule,
             turns=tuple(turns),
             messages=tuple(messages),
@@ -223,6 +301,8 @@ class SynchronousExecutionEngine:
         condition: RunCondition,
         attack_node: int | None,
         adversarial_answer: AdversarialAnswer | None,
+        round_zero_records: tuple[RoundZeroRecord, ...] | None,
+        initial_assignment: InitialStateAssignment | None,
     ) -> None:
         if task.oracle_type != "numeric":
             raise ValueError("the first execution engine supports numeric tasks only")
@@ -237,3 +317,34 @@ class SynchronousExecutionEngine:
                 raise ValueError("attack execution requires an oracle-accepted target error")
             if adversarial_answer.task_id != task.task_id:
                 raise ValueError("target error belongs to a different task")
+        if (round_zero_records is None) != (initial_assignment is None):
+            raise ValueError(
+                "round_zero_records and initial_assignment must be provided together"
+            )
+
+    @staticmethod
+    def _assigned_initial_records(
+        *,
+        graph: GraphSpec,
+        task: TaskInstance,
+        seed: int,
+        round_zero_records: tuple[RoundZeroRecord, ...] | None,
+        initial_assignment: InitialStateAssignment | None,
+    ) -> dict[int, RoundZeroRecord]:
+        if round_zero_records is None or initial_assignment is None:
+            return {}
+        if initial_assignment.node_count != graph.node_count:
+            raise ValueError("initial assignment node count differs from graph")
+        eligible = {
+            record.replica_slot: record
+            for record in round_zero_records
+            if record.task_id == task.task_id and record.experiment_seed == seed
+        }
+        if len(eligible) != graph.node_count or set(eligible) != set(range(graph.node_count)):
+            raise ValueError("round-zero cache does not contain exactly one record per replica")
+        if any(record.prompt_version != PROMPT_VERSION for record in eligible.values()):
+            raise ValueError("round-zero prompt version differs from execution prompt")
+        return {
+            node_id: eligible[initial_assignment.replica_for_node(node_id)]
+            for node_id in range(graph.node_count)
+        }

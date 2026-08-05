@@ -24,6 +24,41 @@ def candidate_edge_pairs(node_count: int, readout_node: int) -> tuple[tuple[int,
     )
 
 
+def relabel_graph(
+    graph: GraphSpec,
+    *,
+    old_node_to_new_node: tuple[int, ...],
+    graph_id: str,
+) -> GraphSpec:
+    """Return the graph induced by an explicit node-label permutation."""
+
+    if len(old_node_to_new_node) != graph.node_count or set(old_node_to_new_node) != set(
+        range(graph.node_count)
+    ):
+        raise ValueError("old_node_to_new_node must be a permutation")
+    return GraphSpec(
+        graph_id=graph_id,
+        node_count=graph.node_count,
+        edges=tuple(
+            edge.model_copy(
+                update={
+                    "source": old_node_to_new_node[edge.source],
+                    "target": old_node_to_new_node[edge.target],
+                }
+            )
+            for edge in graph.edges
+        ),
+        readout_node=old_node_to_new_node[graph.readout_node],
+        max_rounds=graph.max_rounds,
+        sampling_seed=graph.sampling_seed,
+        metadata={
+            **graph.metadata,
+            "relabeling_source_graph_id": graph.graph_id,
+            "old_node_to_new_node": old_node_to_new_node,
+        },
+    )
+
+
 def distances_to_readout(graph: GraphSpec) -> tuple[int | None, ...]:
     """Shortest directed distances, computed by reverse BFS from readout."""
 

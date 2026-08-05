@@ -1,5 +1,10 @@
 """Synchronous multi-agent execution over sampled directed topologies."""
 
+from topology_mas.execution.assignments import (
+    InitialStateAssignment,
+    build_initial_state_assignment,
+    relabel_assignment,
+)
 from topology_mas.execution.engine import SynchronousExecutionEngine
 from topology_mas.execution.generation import TextGenerator
 from topology_mas.execution.openai_compatible import (
@@ -27,6 +32,7 @@ from topology_mas.execution.schemas import (
 __all__ = [
     "ChatMessage",
     "ExecutionSettings",
+    "InitialStateAssignment",
     "InvalidTextCompletionError",
     "OpenAICompatibleTextGenerator",
     "RoundZeroCache",
@@ -42,4 +48,6 @@ __all__ = [
     "TextGenerationResult",
     "TextGenerator",
     "UnexpectedReturnedModelError",
+    "build_initial_state_assignment",
+    "relabel_assignment",
 ]
