@@ -15,7 +15,9 @@ from topology_mas.execution.batch import (
     BatchExecutionStore,
     BatchExecutionSummary,
     ExecutionRunSpec,
+    RoundZeroRecordReference,
     StoredExecutionRun,
+    content_fingerprint,
 )
 from topology_mas.execution.engine import SynchronousExecutionEngine
 from topology_mas.execution.generation import TextGenerator
@@ -69,6 +71,7 @@ __all__ = [
     "RoundZeroGenerationResult",
     "RoundZeroManifest",
     "RoundZeroRecord",
+    "RoundZeroRecordReference",
     "RunTrace",
     "SynchronousExecutionEngine",
     "StoredExecutionRun",
@@ -77,6 +80,7 @@ __all__ = [
     "TextGenerator",
     "UnexpectedReturnedModelError",
     "build_initial_state_assignment",
+    "content_fingerprint",
     "load_round_zero_collection",
     "load_selected_adversarial_answers",
     "relabel_assignment",

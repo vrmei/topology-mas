@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from topology_mas.analysis import analyze_batch, load_complete_batch, write_analysis
 from topology_mas.execution import (
     BatchDisposition,
     BatchExecutionConfig,
@@ -164,6 +165,18 @@ def test_batch_builds_complete_paired_matrix_and_resumes(tmp_path: Path) -> None
     assert summary.new_model_calls == summary.trace_model_calls == 72
     assert len(generator.requests) == 72
     assert len(list((tmp_path / "traces").glob("*.json"))) == 24
+    assert (tmp_path / "inputs" / "tasks.jsonl").exists()
+    assert (tmp_path / "inputs" / "graphs.jsonl").exists()
+    assert len(
+        (tmp_path / "inputs" / "round_zero_index.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ) == 6
+    assert len(
+        (tmp_path / "inputs" / "adversarial_answers.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ) == 1
     assert all(outcome.disposition is BatchDisposition.GENERATED for outcome in outcomes)
 
     resumed_outcomes, resumed_summary = batch.run(**run_kwargs)
@@ -219,6 +232,23 @@ def test_batch_rejects_a_tampered_cached_trace(tmp_path: Path) -> None:
         batch.run(**run_kwargs)
 
 
+def test_batch_rejects_a_tampered_input_snapshot(tmp_path: Path) -> None:
+    generator = CountingGenerator(lambda _: "Updated solution.\nFINAL_ANSWER: 42")
+    batch = runner(tmp_path, generator)
+    run_kwargs = {
+        "tasks": (task(),),
+        "graphs": graphs(),
+        "round_zero_records": round_zero_records(),
+        "adversarial_answers": {"task-1": adversarial_answer()},
+    }
+    batch.run(**run_kwargs)
+    graph_path = tmp_path / "inputs" / "graphs.jsonl"
+    graph_path.write_text("tampered\n", encoding="utf-8")
+
+    with pytest.raises(BatchExecutionConflictError, match="graph snapshot"):
+        batch.run(**run_kwargs)
+
+
 def test_batch_fails_preflight_before_calls_when_round_zero_is_missing(
     tmp_path: Path,
 ) -> None:
@@ -249,3 +279,65 @@ def test_batch_rejects_an_attack_target_equal_to_the_reference(tmp_path: Path) -
         )
 
     assert generator.requests == []
+
+
+def test_analysis_uses_strict_pairs_and_exports_classical_initial_states(
+    tmp_path: Path,
+) -> None:
+    def response(request: TextGenerationRequest) -> str:
+        combined = "\n".join(message.content for message in request.messages)
+        if "Plausible wrong solution." in combined:
+            return "Plausible wrong solution.\nFINAL_ANSWER: 41"
+        return "Updated solution.\nFINAL_ANSWER: 42"
+
+    batch_dir = tmp_path / "batch"
+    batch = runner(batch_dir, CountingGenerator(response))
+    batch.run(
+        tasks=(task(),),
+        graphs=graphs(),
+        round_zero_records=round_zero_records(),
+        adversarial_answers={"task-1": adversarial_answer()},
+    )
+
+    result = analyze_batch(load_complete_batch(batch_dir))
+
+    assert result.manifest.analyzed_runs == 24
+    assert result.manifest.paired_attacks == 16
+    assert len(result.classical_initial_states) == 8
+    assert len(result.graph_metrics) == 2
+    assert any(
+        pair.observed_target_count_by_round[0] > 0
+        and pair.induced_target_count_by_round[0] == 0
+        for pair in result.paired_attacks
+    )
+    for metric in result.graph_metrics:
+        assert metric.utility == 1.0
+        assert metric.r_mean == 0.0
+        assert metric.r_worst == 0.0
+        assert metric.d_mean == 1.0
+        assert metric.d_max == 1.0
+        assert metric.final_target_match_rate == 1.0
+        assert metric.induced_readout_target_rate == 1.0
+        assert metric.correct_to_target_flip_rate == 1.0
+
+    output_dir = tmp_path / "analysis"
+    write_analysis(output_dir, result)
+    assert (output_dir / "graph_metrics.csv").exists()
+    assert len(
+        (output_dir / "paired_attacks.jsonl").read_text(encoding="utf-8").splitlines()
+    ) == 16
+
+
+def test_analysis_rejects_an_incomplete_trace_set(tmp_path: Path) -> None:
+    generator = CountingGenerator(lambda _: "FINAL_ANSWER: 42")
+    batch_dir = tmp_path / "batch"
+    outcomes, _ = runner(batch_dir, generator).run(
+        tasks=(task(),),
+        graphs=graphs(),
+        round_zero_records=round_zero_records(),
+        adversarial_answers={"task-1": adversarial_answer()},
+    )
+    Path(outcomes[0].trace_path).unlink()
+
+    with pytest.raises(BatchExecutionConflictError, match="trace set"):
+        load_complete_batch(batch_dir)

@@ -31,7 +31,7 @@ from topology_mas.models import (
 )
 from topology_mas.topology.sampling import graph_collection_fingerprint
 
-BATCH_EXECUTION_VERSION = "paired-batch-v1"
+BATCH_EXECUTION_VERSION = "paired-batch-v2"
 
 
 class BatchExecutionConfig(BaseModel):
@@ -95,6 +95,7 @@ class BatchExecutionManifest(BaseModel):
     task_collection_fingerprint: str = Field(min_length=64, max_length=64)
     graph_collection_fingerprint: str = Field(min_length=64, max_length=64)
     round_zero_fingerprint: str = Field(min_length=64, max_length=64)
+    round_zero_index_fingerprint: str = Field(min_length=64, max_length=64)
     adversarial_answers_fingerprint: str = Field(min_length=64, max_length=64)
     plan_fingerprint: str = Field(min_length=64, max_length=64)
     expected_run_count: int = Field(ge=1)
@@ -144,6 +145,36 @@ class StoredExecutionRun(BaseModel):
     trace: RunTrace
 
 
+class RoundZeroRecordReference(BaseModel):
+    """Compact immutable pointer to one cached independent response."""
+
+    model_config = ConfigDict(frozen=True)
+
+    record_id: str = Field(min_length=1)
+    request_fingerprint: str = Field(min_length=64, max_length=64)
+    task_id: str = Field(min_length=1)
+    replica_slot: int = Field(ge=0)
+    experiment_seed: int
+    generation_seed: int
+    prompt_version: str = Field(min_length=1)
+    requested_model: str = Field(min_length=1)
+    returned_model: str | None = None
+
+    @classmethod
+    def from_record(cls, record: RoundZeroRecord) -> RoundZeroRecordReference:
+        return cls(
+            record_id=record.record_id,
+            request_fingerprint=record.request_fingerprint,
+            task_id=record.task_id,
+            replica_slot=record.replica_slot,
+            experiment_seed=record.experiment_seed,
+            generation_seed=record.generation_seed,
+            prompt_version=record.prompt_version,
+            requested_model=record.requested_model,
+            returned_model=record.returned_model,
+        )
+
+
 class BatchExecutionConflictError(RuntimeError):
     pass
 
@@ -160,7 +191,9 @@ def _jsonable(value: Any) -> Any:
     return value
 
 
-def _fingerprint(value: Any) -> str:
+def content_fingerprint(value: Any) -> str:
+    """Return the canonical SHA-256 fingerprint used by batch artifacts."""
+
     encoded = json.dumps(
         _jsonable(value),
         ensure_ascii=False,
@@ -168,6 +201,10 @@ def _fingerprint(value: Any) -> str:
         separators=(",", ":"),
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def _jsonl(values: tuple[BaseModel, ...]) -> str:
+    return "".join(value.model_dump_json() + "\n" for value in values)
 
 
 def _atomic_write_text(path: Path, content: str) -> None:
@@ -208,6 +245,11 @@ class BatchExecutionStore:
         self.root = Path(root)
         self.manifest_path = self.root / "manifest.json"
         self.plan_path = self.root / "plan.jsonl"
+        self.inputs_dir = self.root / "inputs"
+        self.tasks_path = self.inputs_dir / "tasks.jsonl"
+        self.graphs_path = self.inputs_dir / "graphs.jsonl"
+        self.round_zero_index_path = self.inputs_dir / "round_zero_index.jsonl"
+        self.adversarial_answers_path = self.inputs_dir / "adversarial_answers.jsonl"
         self.traces_dir = self.root / "traces"
 
     def initialize(
@@ -215,31 +257,41 @@ class BatchExecutionStore:
         *,
         manifest: BatchExecutionManifest,
         plan: tuple[ExecutionRunSpec, ...],
+        tasks: tuple[TaskInstance, ...],
+        graphs: tuple[GraphSpec, ...],
+        round_zero_references: tuple[RoundZeroRecordReference, ...],
+        adversarial_answers: tuple[AdversarialAnswer, ...],
     ) -> None:
         manifest_text = json.dumps(
             manifest.model_dump(mode="json"), indent=2, sort_keys=True
         ) + "\n"
-        plan_text = "".join(spec.model_dump_json() + "\n" for spec in plan)
-        if (
-            self.manifest_path.exists()
-            and self.manifest_path.read_text(encoding="utf-8") != manifest_text
-        ):
-            raise BatchExecutionConflictError(
-                "batch manifest differs; use a new output directory"
-            )
-        if (
-            self.plan_path.exists()
-            and self.plan_path.read_text(encoding="utf-8") != plan_text
-        ):
-            raise BatchExecutionConflictError(
-                "batch plan differs; use a new output directory"
-            )
+        artifacts = (
+            (self.manifest_path, manifest_text, "batch manifest"),
+            (self.plan_path, _jsonl(plan), "batch plan"),
+            (self.tasks_path, _jsonl(tasks), "task snapshot"),
+            (self.graphs_path, _jsonl(graphs), "graph snapshot"),
+            (
+                self.round_zero_index_path,
+                _jsonl(round_zero_references),
+                "round-zero index",
+            ),
+            (
+                self.adversarial_answers_path,
+                _jsonl(adversarial_answers),
+                "adversarial-answer snapshot",
+            ),
+        )
+        for path, content, label in artifacts:
+            if path.exists() and path.read_text(encoding="utf-8") != content:
+                raise BatchExecutionConflictError(
+                    f"{label} differs; use a new output directory"
+                )
         self.root.mkdir(parents=True, exist_ok=True)
+        self.inputs_dir.mkdir(parents=True, exist_ok=True)
         self.traces_dir.mkdir(parents=True, exist_ok=True)
-        if not self.plan_path.exists():
-            _atomic_write_text(self.plan_path, plan_text)
-        if not self.manifest_path.exists():
-            _atomic_write_text(self.manifest_path, manifest_text)
+        for path, content, _ in artifacts:
+            if not path.exists():
+                _atomic_write_text(path, content)
 
     def trace_path(self, spec: ExecutionRunSpec) -> Path:
         return self.traces_dir / f"{spec.run_spec_id}.json"
@@ -254,7 +306,7 @@ class BatchExecutionStore:
             raise BatchExecutionConflictError(f"invalid cached trace at {path}") from exc
         if stored.run_spec != spec:
             raise BatchExecutionConflictError(f"cached run spec differs at {path}")
-        if stored.trace_fingerprint != _fingerprint(stored.trace):
+        if stored.trace_fingerprint != content_fingerprint(stored.trace):
             raise BatchExecutionConflictError(f"cached trace fingerprint differs at {path}")
         return stored
 
@@ -262,7 +314,7 @@ class BatchExecutionStore:
         path = self.trace_path(spec)
         stored = StoredExecutionRun(
             run_spec=spec,
-            trace_fingerprint=_fingerprint(trace),
+            trace_fingerprint=content_fingerprint(trace),
             trace=trace,
         )
         if path.exists():
@@ -329,6 +381,9 @@ class BatchExecutionRunner:
         selected_adversarial = tuple(
             adversarial[task.task_id] for task in tasks
         ) if self.config.include_attacks else ()
+        round_zero_references = tuple(
+            RoundZeroRecordReference.from_record(record) for record in selected_records
+        )
         manifest = BatchExecutionManifest(
             config=self.config,
             execution_settings=self.engine.settings,
@@ -339,12 +394,20 @@ class BatchExecutionRunner:
             graph_ids=tuple(graph.graph_id for graph in graphs),
             task_collection_fingerprint=task_collection_fingerprint(tasks),
             graph_collection_fingerprint=graph_collection_fingerprint(graphs),
-            round_zero_fingerprint=_fingerprint(selected_records),
-            adversarial_answers_fingerprint=_fingerprint(selected_adversarial),
-            plan_fingerprint=_fingerprint(plan),
+            round_zero_fingerprint=content_fingerprint(selected_records),
+            round_zero_index_fingerprint=content_fingerprint(round_zero_references),
+            adversarial_answers_fingerprint=content_fingerprint(selected_adversarial),
+            plan_fingerprint=content_fingerprint(plan),
             expected_run_count=len(plan),
         )
-        self.store.initialize(manifest=manifest, plan=plan)
+        self.store.initialize(
+            manifest=manifest,
+            plan=plan,
+            tasks=tasks,
+            graphs=graphs,
+            round_zero_references=round_zero_references,
+            adversarial_answers=selected_adversarial,
+        )
 
         task_by_id = {task.task_id: task for task in tasks}
         graph_by_id = {graph.graph_id: graph for graph in graphs}
