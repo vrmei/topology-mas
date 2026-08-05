@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-
 from topology_mas.execution.answers import classify_numeric_answer, parse_numeric_answer
 from topology_mas.execution.generation import TextGenerator
 from topology_mas.execution.prompts import PROMPT_VERSION, build_node_messages
@@ -13,6 +11,7 @@ from topology_mas.execution.schemas import (
     TextGenerationRequest,
     TextGenerationResult,
 )
+from topology_mas.execution.seeding import node_round_seed, stable_id
 from topology_mas.models import (
     AdversarialAnswer,
     GraphSpec,
@@ -22,16 +21,6 @@ from topology_mas.models import (
     TaskInstance,
 )
 from topology_mas.topology.graph_ops import build_causal_schedule
-
-
-def _stable_integer(*parts: object) -> int:
-    payload = "\0".join(str(part) for part in parts).encode("utf-8")
-    return int.from_bytes(hashlib.sha256(payload).digest()[:8], "big") % (2**31)
-
-
-def _stable_id(prefix: str, *parts: object) -> str:
-    payload = "\0".join(str(part) for part in parts).encode("utf-8")
-    return f"{prefix}-{hashlib.sha256(payload).hexdigest()[:20]}"
 
 
 class SynchronousExecutionEngine:
@@ -62,7 +51,7 @@ class SynchronousExecutionEngine:
             adversarial_answer=adversarial_answer,
         )
         schedule = build_causal_schedule(graph)
-        run_id = _stable_id(
+        run_id = stable_id(
             "run",
             graph.graph_id,
             task.task_id,
@@ -97,8 +86,11 @@ class SynchronousExecutionEngine:
                     previous_output=previous,
                     incoming_messages=incoming,
                 )
-                generation_seed = _stable_integer(
-                    seed, task.task_id, node_id, round_index
+                generation_seed = node_round_seed(
+                    experiment_seed=seed,
+                    task_id=task.task_id,
+                    node_id=node_id,
+                    round_index=round_index,
                 )
                 is_attacker = condition is RunCondition.ATTACK and node_id == attack_node
                 if is_attacker:

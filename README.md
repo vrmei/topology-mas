@@ -99,3 +99,20 @@ depends on a narrow `TextGenerator` protocol. An OpenAI-compatible adapter now c
 protocol to vLLM or a gateway without changing execution semantics. See
 [the execution protocol](docs/execution_protocol.md) and
 [the model-adapter protocol](docs/model_adapter.md).
+
+Generate graph-independent round-zero answers before the topology runs:
+
+```powershell
+topology-mas-generate-round-zero `
+  --tasks data/prepared/gsm8k/main.jsonl `
+  --output-dir runs/round-zero/pilot-v1 `
+  --node-count 5 `
+  --seeds 0,1,2 `
+  --model Qwen/Qwen3-8B `
+  --expected-returned-model Qwen/Qwen3-8B `
+  --base-url http://127.0.0.1:8000/v1 `
+  --api-key-env VLLM_API_KEY
+```
+
+Each task-node-seed answer is atomically cached and later reused across graph conditions. See
+[the round-zero cache protocol](docs/round_zero_cache.md).
