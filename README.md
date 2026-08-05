@@ -4,9 +4,9 @@ Controlled experiments for separating graph-structural effects from LLM update d
 multi-agent systems.
 
 The repository is being built incrementally. It currently contains validated experiment records,
-an auditable offline GSM8K target-error mutation pipeline, constrained graph sampling, and a
-provider-neutral synchronous MAS execution kernel. Provider adapters, classical baselines, and
-analysis will be added as separate modules.
+an auditable offline GSM8K target-error mutation pipeline, constrained graph sampling, a
+provider-neutral synchronous MAS execution kernel, an OpenAI-compatible adapter, and a resumable
+paired batch runner. Classical baselines and analysis will be added as separate modules.
 
 ## Development setup
 
@@ -117,3 +117,24 @@ topology-mas-generate-round-zero `
 Each task-replica-seed answer is atomically cached. A recorded assignment permutation later maps
 anonymous replicas to structural nodes; neither identity is exposed to the model. See [the
 round-zero cache protocol](docs/round_zero_cache.md).
+
+## Run the paired graph experiment
+
+The batch runner materializes the full clean and per-node attack plan before execution, validates all
+Round-zero and mutation inputs, writes each trace atomically, and resumes only missing cells:
+
+```powershell
+topology-mas-run-batch `
+  --tasks data/prepared/gsm8k/main.jsonl `
+  --graphs data/prepared/graphs-v2/n5_m8_t3_seed0/graphs.jsonl `
+  --round-zero-dir runs/round-zero/pilot-v1 `
+  --mutations-dir runs/mutations/pilot-v1 `
+  --output-dir runs/execution/n5_m8_t3 `
+  --experiment-seeds 0,1,2 `
+  --assignment-seeds 0,1,2 `
+  --model deepseek-chat `
+  --expected-returned-model deepseek-v4-flash
+```
+
+See [the paired batch protocol](docs/batch_execution.md) for matrix size, preflight checks, cache
+identity, and cost semantics.

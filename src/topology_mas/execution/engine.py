@@ -17,6 +17,7 @@ from topology_mas.execution.schemas import (
 from topology_mas.execution.seeding import (
     anonymous_message_order_key,
     online_replica_round_seed,
+    stable_fingerprint,
     stable_id,
 )
 from topology_mas.models import (
@@ -73,6 +74,11 @@ class SynchronousExecutionEngine:
             (node_id, record.request_fingerprint)
             for node_id, record in sorted(assigned_initial.items())
         )
+        adversarial_answer_fingerprint = (
+            stable_fingerprint(adversarial_answer.model_dump_json())
+            if adversarial_answer is not None
+            else None
+        )
         run_id = stable_id(
             "run",
             graph.graph_id,
@@ -84,6 +90,7 @@ class SynchronousExecutionEngine:
             self.settings.model_dump_json(),
             initial_assignment.assignment_id if initial_assignment else None,
             initial_identity,
+            adversarial_answer_fingerprint,
         )
         target_answer = adversarial_answer.target_answer if adversarial_answer else None
 
@@ -268,6 +275,8 @@ class SynchronousExecutionEngine:
             graph_id=graph.graph_id,
             condition=condition,
             attack_node=attack_node,
+            adversarial_answer_fingerprint=adversarial_answer_fingerprint,
+            target_answer=target_answer,
             initial_assignment_id=(
                 initial_assignment.assignment_id if initial_assignment else None
             ),

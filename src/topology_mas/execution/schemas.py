@@ -70,6 +70,10 @@ class RunTrace(BaseModel):
     graph_id: str = Field(min_length=1)
     condition: RunCondition
     attack_node: int | None = Field(default=None, ge=0)
+    adversarial_answer_fingerprint: str | None = Field(
+        default=None, min_length=64, max_length=64
+    )
+    target_answer: str | None = None
     initial_assignment_id: str | None = None
     initial_assignment_seed: int | None = None
     structural_node_to_replica: tuple[int, ...] | None = None
@@ -90,6 +94,14 @@ class RunTrace(BaseModel):
     def validate_condition(self) -> RunTrace:
         if self.condition is RunCondition.CLEAN and self.attack_node is not None:
             raise ValueError("clean traces cannot specify attack_node")
+        if self.condition is RunCondition.CLEAN and (
+            self.adversarial_answer_fingerprint is not None or self.target_answer is not None
+        ):
+            raise ValueError("clean traces cannot specify an adversarial answer")
         if self.condition is RunCondition.ATTACK and self.attack_node is None:
             raise ValueError("attack traces must specify attack_node")
+        if self.condition is RunCondition.ATTACK and (
+            self.adversarial_answer_fingerprint is None or self.target_answer is None
+        ):
+            raise ValueError("attack traces must identify the adversarial answer")
         return self

@@ -15,6 +15,13 @@ def stable_id(prefix: str, *parts: object) -> str:
     return f"{prefix}-{hashlib.sha256(payload).hexdigest()[:20]}"
 
 
+def stable_fingerprint(*parts: object) -> str:
+    """Full SHA-256 identity for persisted experimental content."""
+
+    payload = "\0".join(str(part) for part in parts).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
 def online_replica_round_seed(
     *,
     experiment_seed: int,

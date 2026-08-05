@@ -223,6 +223,36 @@ def test_target_error_replay_replaces_attacker_calls_and_propagates() -> None:
     assert attacker_turn.answer_state is AnswerState.TARGET_ERROR
     assert trace.final_answer_state is AnswerState.TARGET_ERROR
     assert trace.final_parsed_answer == "41"
+    assert trace.target_answer == "41"
+    assert trace.adversarial_answer_fingerprint is not None
+
+
+def test_attack_content_changes_run_identity() -> None:
+    first = SynchronousExecutionEngine(
+        CapturingGenerator(lambda _: "FINAL_ANSWER: 42")
+    ).run(
+        graph=chain(),
+        task=task(),
+        condition=RunCondition.ATTACK,
+        attack_node=0,
+        adversarial_answer=target_error(),
+        seed=0,
+    )
+    second = SynchronousExecutionEngine(
+        CapturingGenerator(lambda _: "FINAL_ANSWER: 42")
+    ).run(
+        graph=chain(),
+        task=task(),
+        condition=RunCondition.ATTACK,
+        attack_node=0,
+        adversarial_answer=target_error().model_copy(
+            update={"rationale": "A different wrong rationale.\n#### 41"}
+        ),
+        seed=0,
+    )
+
+    assert first.run_id != second.run_id
+    assert first.adversarial_answer_fingerprint != second.adversarial_answer_fingerprint
 
 
 def test_attack_requires_an_accepted_task_matching_target_error() -> None:

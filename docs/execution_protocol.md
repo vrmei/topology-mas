@@ -78,9 +78,9 @@ cannot collide.
 `RunTrace` stores the full causal schedule, all node turns, every broadcast, prompt messages,
 incoming message IDs, previous node output, parsed answer state, generation seed, token counts,
 latency, final readout result, execution settings, the assignment seed and exact replica permutation,
-and whether a turn was a model call, cache replay, or attack replay. Runtime token totals exclude the
-offline round-zero generation cost; cached records retain their original token and latency metadata
-separately.
+the target answer and full adversarial-answer fingerprint for attack runs, and whether a turn was a
+model call, cache replay, or attack replay. Runtime token totals exclude the offline round-zero
+generation cost; cached records retain their original token and latency metadata separately.
 
 The current module exposes a provider-neutral `TextGenerator` protocol and an OpenAI-compatible
 adapter. Deterministic fake backends are used for protocol invariants; provider smoke tests are used
