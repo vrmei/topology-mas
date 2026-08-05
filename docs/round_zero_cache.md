@@ -37,9 +37,15 @@ generates only missing records until that count is reached.
 
 ## Current scope
 
-The cache currently supports numeric tasks and the `homogeneous-gsm8k-v1` round-zero prompt. It
+The cache currently supports numeric tasks and the `homogeneous-gsm8k-v2` round-zero prompt. It
 stores explicit-answer parsing, correctness, token use, latency, returned model, and the provider
 metadata needed for audit.
+
+The v2 prompt requires a plain-text `FINAL_ANSWER: <number>` final line. The parser accepts only
+explicit answer markers, including conservative provider formatting variants such as
+`Final Answer:`, Markdown-wrapped markers, and a standalone LaTeX `\\boxed{}` answer. It never
+guesses from an unmarked trailing number. Parser changes that affect stored classifications require
+a cache-protocol version bump; the current version is `round-zero-cache-v3`.
 
 Temperature is intentionally configurable. The infrastructure does not assume that temperature
 zero or positive-temperature sampling is scientifically preferable; that choice must be fixed by

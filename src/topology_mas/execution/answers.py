@@ -1,4 +1,4 @@
-"""Strict GSM8K answer extraction and state classification."""
+"""Explicit GSM8K answer extraction and state classification."""
 
 from __future__ import annotations
 
@@ -7,12 +7,20 @@ from fractions import Fraction
 
 from topology_mas.models import AnswerState
 
-_FINAL_ANSWER = re.compile(r"(?im)^\s*FINAL_ANSWER\s*:\s*([^\r\n]+?)\s*$")
+_FINAL_ANSWER = re.compile(
+    r"(?im)(?:\*\*)?\s*FINAL[\s_]+ANSWER\s*:\s*"
+    r"(?:FINAL[\s_]+ANSWER\s*:\s*)?(.+?)\s*(?:\*\*)?\s*$"
+)
 _GSM8K_MARKER = re.compile(r"(?m)^\s*####\s*([^\s]+)\s*$")
+_BOXED_ANSWER = re.compile(
+    r"(?im)^\s*(?:\\\[\s*)?\\boxed\{([^{}]+)\}(?:\s*\\\])?\s*$"
+)
 
 
 def normalize_numeric_answer(value: str) -> str:
-    cleaned = value.strip().replace(",", "").removeprefix("$").strip()
+    cleaned = value.strip().replace(r"\$", "$")
+    cleaned = cleaned.removeprefix("**").removesuffix("**").strip()
+    cleaned = cleaned.replace(",", "").removeprefix("$").strip()
     number = Fraction(cleaned)
     if number.denominator == 1:
         return str(number.numerator)
@@ -20,11 +28,13 @@ def normalize_numeric_answer(value: str) -> str:
 
 
 def parse_numeric_answer(raw_text: str) -> str | None:
-    """Parse only an explicit final-answer marker; never guess from the last number."""
+    """Parse an explicit answer marker; never guess from an unmarked trailing number."""
 
     matches = list(_FINAL_ANSWER.finditer(raw_text))
     if not matches:
         matches = list(_GSM8K_MARKER.finditer(raw_text))
+    if not matches:
+        matches = list(_BOXED_ANSWER.finditer(raw_text))
     if not matches:
         return None
     try:

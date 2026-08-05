@@ -19,7 +19,7 @@ from topology_mas.execution.schemas import TextGenerationRequest
 from topology_mas.execution.seeding import round_zero_replica_seed, stable_id
 from topology_mas.models import AnswerState, TaskInstance
 
-ROUND_ZERO_CACHE_VERSION = "round-zero-cache-v2"
+ROUND_ZERO_CACHE_VERSION = "round-zero-cache-v3"
 
 
 class RoundZeroCacheConfig(BaseModel):
