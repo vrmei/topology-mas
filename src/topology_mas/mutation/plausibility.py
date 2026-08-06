@@ -63,7 +63,9 @@ class DeepSeekPlausibilityOracle:
             payload.subtlety,
             payload.minimality,
         )
-        computed_overall = sum(dimensions) / len(dimensions)
+        # Normalize insignificant runtime-specific floating-point tails so cached
+        # scores and threshold decisions are reproducible across Python versions.
+        computed_overall = round(sum(dimensions) / len(dimensions), 6)
         reasons = list(payload.rejection_reasons)
         if not payload.plausible:
             reasons.append("DeepSeek marked the candidate implausible")
