@@ -25,6 +25,7 @@ topology-mas-sample-graphs = "topology_mas.topology.cli:main"
 topology-mas-generate-round-zero = "topology_mas.execution.round_zero_cli:main"
 topology-mas-run-batch = "topology_mas.execution.batch_cli:main"
 topology-mas-analyze-batch = "topology_mas.analysis.cli:main"
+topology-mas-probe-server = "topology_mas.execution.server_probe_cli:main"
 
 [project.optional-dependencies]
 dev = [

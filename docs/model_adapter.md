@@ -17,7 +17,9 @@ Every node request sends:
 
 The adapter records requested and returned model names, request ID, finish reason, prompt and
 completion token counts, end-to-end latency, HTTP attempt count, and the raw provider response. API
-keys are read from an environment variable and never added to a trace.
+keys are read from an environment variable and never added to a trace. For a private vLLM
+endpoint with no authentication, omit the API-key environment setting; the adapter then sends no
+`Authorization` header. Do not expose an unauthenticated endpoint publicly.
 
 The optional `expected_returned_model` setting makes a model mismatch a terminal error. Formal
 experiments should enable this check when the server returns a stable snapshot identifier. Model
@@ -48,3 +50,24 @@ Consequences:
 - the rented vLLM server must undergo the same repeated-request calibration before the pilot;
 - round-zero outputs should be explicitly cached and reused across graph conditions if strict
   pairing cannot be established at the server level.
+
+## Self-hosted server preflight
+
+Before generating Round 0, run the versioned server probe with an identical request repeated at
+least three times:
+
+```powershell
+topology-mas-probe-server `
+  --base-url http://SERVER:8000/v1 `
+  --model meta-llama/Llama-3.1-8B-Instruct `
+  --expected-returned-model meta-llama/Llama-3.1-8B-Instruct `
+  --output runs/server-probes/llama-3.1-8b.json
+```
+
+The report records the returned model, exact output hashes, answer parsing, token-usage fields,
+latency, and request IDs. `exact_repeat_observed` means only that this fixed probe repeated exactly;
+it is not a general proof that all prompts are deterministic. If the vLLM server is configured with
+an API key, add `--api-key-env <ENVIRONMENT_VARIABLE>`.
+
+For the later Round 0 and batch commands, add `--no-auth` when connecting to the same private
+unauthenticated endpoint. The OhMyGPT-compatible default remains authenticated.

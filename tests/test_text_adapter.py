@@ -149,6 +149,24 @@ def test_adapter_requires_a_key_without_exposing_it(monkeypatch: pytest.MonkeyPa
         )
 
 
+def test_adapter_can_connect_to_an_unauthenticated_local_server() -> None:
+    captured: list[httpx.Request] = []
+
+    def handler(http_request: httpx.Request) -> httpx.Response:
+        captured.append(http_request)
+        return httpx.Response(200, json=response_payload())
+
+    with OpenAICompatibleTextGenerator(
+        model="local-model",
+        base_url="http://127.0.0.1:8000/v1",
+        transport=httpx.MockTransport(handler),
+    ) as generator:
+        generator.generate(request())
+
+    assert "authorization" not in captured[0].headers
+    assert captured[0].headers["content-type"] == "application/json"
+
+
 def test_adapter_can_fail_closed_on_returned_model_mismatch() -> None:
     transport = httpx.MockTransport(
         lambda _: httpx.Response(200, json=response_payload())

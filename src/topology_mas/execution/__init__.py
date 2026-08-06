@@ -47,6 +47,13 @@ from topology_mas.execution.schemas import (
     TextGenerationRequest,
     TextGenerationResult,
 )
+from topology_mas.execution.server_probe import (
+    ServerProbeAttempt,
+    ServerProbeConfig,
+    ServerProbeReport,
+    run_server_probe,
+    write_server_probe_report,
+)
 
 __all__ = [
     "ChatMessage",
@@ -72,6 +79,9 @@ __all__ = [
     "RoundZeroManifest",
     "RoundZeroRecord",
     "RoundZeroRecordReference",
+    "ServerProbeAttempt",
+    "ServerProbeConfig",
+    "ServerProbeReport",
     "RunTrace",
     "SynchronousExecutionEngine",
     "StoredExecutionRun",
@@ -84,4 +94,6 @@ __all__ = [
     "load_round_zero_collection",
     "load_selected_adversarial_answers",
     "relabel_assignment",
+    "run_server_probe",
+    "write_server_probe_report",
 ]

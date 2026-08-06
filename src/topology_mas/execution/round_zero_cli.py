@@ -36,6 +36,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--expected-returned-model")
     parser.add_argument("--base-url", required=True)
     parser.add_argument("--api-key-env", default="OHMYGPT_API_KEY")
+    parser.add_argument(
+        "--no-auth",
+        action="store_true",
+        help="send no Authorization header (private local servers only)",
+    )
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max-output-tokens", type=int, default=768)
     parser.add_argument("--timeout-seconds", type=float, default=120.0)
@@ -63,7 +68,7 @@ def main() -> None:
         model=args.model,
         expected_returned_model=args.expected_returned_model,
         base_url=args.base_url,
-        api_key_env=args.api_key_env,
+        api_key_env=None if args.no_auth else args.api_key_env,
         timeout_seconds=args.timeout_seconds,
         max_attempts=args.max_attempts,
     ) as generator:

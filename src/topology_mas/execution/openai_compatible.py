@@ -39,7 +39,7 @@ class OpenAICompatibleTextGenerator:
         *,
         model: str,
         base_url: str,
-        api_key_env: str,
+        api_key_env: str | None = None,
         api_key: str | None = None,
         expected_returned_model: str | None = None,
         timeout_seconds: float = 120.0,
@@ -47,9 +47,16 @@ class OpenAICompatibleTextGenerator:
         retry_base_seconds: float = 1.0,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
-        key = api_key or os.getenv(api_key_env)
-        if not key:
-            raise RuntimeError(f"API key environment variable {api_key_env!r} is not set")
+        if api_key is not None:
+            key = api_key
+        elif api_key_env is not None:
+            key = os.getenv(api_key_env)
+            if not key:
+                raise RuntimeError(
+                    f"API key environment variable {api_key_env!r} is not set"
+                )
+        else:
+            key = None
         if not model:
             raise ValueError("model cannot be empty")
         if max_attempts < 1:
@@ -138,12 +145,12 @@ class OpenAICompatibleTextGenerator:
         last_error: Exception | None = None
         for attempt in range(1, self._max_attempts + 1):
             try:
+                headers = {"Content-Type": "application/json"}
+                if self._api_key is not None:
+                    headers["Authorization"] = f"Bearer {self._api_key}"
                 response = self._client.post(
                     f"{self.base_url}/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {self._api_key}",
-                        "Content-Type": "application/json",
-                    },
+                    headers=headers,
                     json=payload,
                 )
                 if response.status_code not in self._RETRYABLE_STATUSES:
