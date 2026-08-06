@@ -79,6 +79,9 @@ def test_round_zero_generation_is_graph_independent_and_resume_safe(tmp_path: Pa
     assert len(first) == 6
     assert len(generator.requests) == 6
     assert all(record.prompt_version == PROMPT_VERSION for record in first)
+    assert all(
+        record.prompt_messages[-1]["content"].endswith("FINAL_ANSWER: <number>") for record in first
+    )
     assert all(record.answer_state is AnswerState.CORRECT for record in first)
     assert all(record.prompt_messages == first[0].prompt_messages for record in first)
     assert (tmp_path / "manifest.json").exists()
