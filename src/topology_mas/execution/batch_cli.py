@@ -58,6 +58,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--message-order-seed", type=int, default=0)
     parser.add_argument("--timeout-seconds", type=float, default=120.0)
     parser.add_argument("--max-attempts", type=int, default=3)
+    parser.add_argument("--max-workers", type=int, default=1)
     return parser
 
 
@@ -65,22 +66,15 @@ def main() -> None:
     args = build_parser().parse_args()
     tasks = read_tasks_jsonl(args.tasks)
     graphs = read_graphs_jsonl(args.graphs)
-    round_zero_manifest, round_zero_records = load_round_zero_collection(
-        args.round_zero_dir
-    )
+    round_zero_manifest, round_zero_records = load_round_zero_collection(args.round_zero_dir)
     experiment_seeds = args.experiment_seeds or round_zero_manifest.config.seeds
     model = args.model or round_zero_manifest.config.requested_model
     expected_returned_model = (
-        args.expected_returned_model
-        or round_zero_manifest.config.expected_returned_model
+        args.expected_returned_model or round_zero_manifest.config.expected_returned_model
     )
     if args.mutations_dir is not None and args.adversarial_answers is not None:
         raise ValueError("use only one of --mutations-dir and --adversarial-answers")
-    if (
-        not args.clean_only
-        and args.mutations_dir is None
-        and args.adversarial_answers is None
-    ):
+    if not args.clean_only and args.mutations_dir is None and args.adversarial_answers is None:
         raise ValueError(
             "--adversarial-answers or --mutations-dir is required unless --clean-only is set"
         )
@@ -116,6 +110,7 @@ def main() -> None:
             SynchronousExecutionEngine(generator, settings=settings),
             config=config,
             output_dir=args.output_dir,
+            max_workers=args.max_workers,
         )
         _, summary = runner.run(
             tasks=tasks,

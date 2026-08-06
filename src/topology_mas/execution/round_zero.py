@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import tempfile
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
@@ -173,13 +174,7 @@ class RoundZeroCache:
 
     def record_path(self, *, task_id: str, seed: int, replica_slot: int) -> Path:
         safe_task = task_id.replace("/", "_").replace("\\", "_")
-        return (
-            self.root
-            / "records"
-            / safe_task
-            / f"seed_{seed}"
-            / f"replica_{replica_slot}.json"
-        )
+        return self.root / "records" / safe_task / f"seed_{seed}" / f"replica_{replica_slot}.json"
 
     def load(
         self,
@@ -221,31 +216,47 @@ class RoundZeroGenerator:
         *,
         config: RoundZeroCacheConfig,
         cache: RoundZeroCache,
+        max_workers: int = 1,
     ) -> None:
+        if max_workers < 1:
+            raise ValueError("max_workers must be at least one")
         self._generator = generator
         self.config = config
         self.cache = cache
+        self.max_workers = max_workers
 
     def generate(self, tasks: tuple[TaskInstance, ...]) -> RoundZeroGenerationResult:
         self.cache.initialize(config=self.config, tasks=tasks)
-        records: list[RoundZeroRecord] = []
-        generated_count = 0
-        reused_count = 0
+        jobs: list[tuple[TaskInstance, int, int]] = []
         for task in tasks:
             if task.oracle_type != "numeric":
                 raise ValueError("the first round-zero generator supports numeric tasks only")
             for experiment_seed in self.config.seeds:
                 for replica_slot in range(self.config.replica_count):
-                    record, generated = self._generate_one(
-                        task=task,
-                        replica_slot=replica_slot,
-                        experiment_seed=experiment_seed,
-                    )
-                    records.append(record)
-                    generated_count += int(generated)
-                    reused_count += int(not generated)
+                    jobs.append((task, replica_slot, experiment_seed))
+
+        completed: list[tuple[RoundZeroRecord, bool] | None] = [None] * len(jobs)
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            futures: dict[Future[tuple[RoundZeroRecord, bool]], int] = {
+                executor.submit(
+                    self._generate_one,
+                    task=task,
+                    replica_slot=replica_slot,
+                    experiment_seed=experiment_seed,
+                ): index
+                for index, (task, replica_slot, experiment_seed) in enumerate(jobs)
+            }
+            for future in as_completed(futures):
+                completed[futures[future]] = future.result()
+
+        resolved = tuple(item for item in completed if item is not None)
+        if len(resolved) != len(jobs):
+            raise RuntimeError("round-zero generation completed with missing jobs")
+        records = tuple(record for record, _ in resolved)
+        generated_count = sum(generated for _, generated in resolved)
+        reused_count = len(resolved) - generated_count
         return RoundZeroGenerationResult(
-            records=tuple(records),
+            records=records,
             generated_count=generated_count,
             reused_count=reused_count,
         )

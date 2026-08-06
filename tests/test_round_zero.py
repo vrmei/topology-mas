@@ -59,7 +59,12 @@ def config() -> RoundZeroCacheConfig:
 def test_round_zero_generation_is_graph_independent_and_resume_safe(tmp_path: Path) -> None:
     generator = CountingGenerator()
     cache = RoundZeroCache(tmp_path)
-    runner = RoundZeroGenerator(generator, config=config(), cache=cache)
+    runner = RoundZeroGenerator(
+        generator,
+        config=config(),
+        cache=cache,
+        max_workers=3,
+    )
 
     first_result = runner.generate(tasks())
     second_result = runner.generate(tasks())
@@ -81,11 +86,15 @@ def test_round_zero_generation_is_graph_independent_and_resume_safe(tmp_path: Pa
 
 
 def test_round_zero_seed_matches_execution_seed_contract(tmp_path: Path) -> None:
-    records = RoundZeroGenerator(
-        CountingGenerator(),
-        config=config().model_copy(update={"seeds": (7,)}),
-        cache=RoundZeroCache(tmp_path),
-    ).generate(tasks()).records
+    records = (
+        RoundZeroGenerator(
+            CountingGenerator(),
+            config=config().model_copy(update={"seeds": (7,)}),
+            cache=RoundZeroCache(tmp_path),
+        )
+        .generate(tasks())
+        .records
+    )
 
     for record in records:
         assert record.generation_seed == round_zero_replica_seed(

@@ -45,6 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-output-tokens", type=int, default=768)
     parser.add_argument("--timeout-seconds", type=float, default=120.0)
     parser.add_argument("--max-attempts", type=int, default=3)
+    parser.add_argument("--max-workers", type=int, default=1)
     return parser
 
 
@@ -76,6 +77,7 @@ def main() -> None:
             generator,
             config=config,
             cache=cache,
+            max_workers=args.max_workers,
         ).generate(tasks)
     records = result.records
     print(
@@ -88,6 +90,7 @@ def main() -> None:
                 "record_count": len(records),
                 "generated_count": result.generated_count,
                 "reused_count": result.reused_count,
+                "max_workers": args.max_workers,
                 "parsed_count": sum(record.parsed_answer is not None for record in records),
                 "correct_count": sum(record.is_correct for record in records),
                 "returned_models": sorted(

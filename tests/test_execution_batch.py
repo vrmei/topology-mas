@@ -78,9 +78,7 @@ def graphs() -> tuple[GraphSpec, ...]:
 def round_zero_records() -> tuple[RoundZeroRecord, ...]:
     prompt_messages = tuple(
         message.model_dump()
-        for message in build_node_messages(
-            task(), previous_output=None, incoming_messages=()
-        )
+        for message in build_node_messages(task(), previous_output=None, incoming_messages=())
     )
     records: list[RoundZeroRecord] = []
     for experiment_seed in (0, 1):
@@ -141,6 +139,7 @@ def runner(tmp_path: Path, generator: CountingGenerator) -> BatchExecutionRunner
             expected_returned_model="fake-model",
         ),
         output_dir=tmp_path,
+        max_workers=4,
     )
 
 
@@ -167,16 +166,22 @@ def test_batch_builds_complete_paired_matrix_and_resumes(tmp_path: Path) -> None
     assert len(list((tmp_path / "traces").glob("*.json"))) == 24
     assert (tmp_path / "inputs" / "tasks.jsonl").exists()
     assert (tmp_path / "inputs" / "graphs.jsonl").exists()
-    assert len(
-        (tmp_path / "inputs" / "round_zero_index.jsonl")
-        .read_text(encoding="utf-8")
-        .splitlines()
-    ) == 6
-    assert len(
-        (tmp_path / "inputs" / "adversarial_answers.jsonl")
-        .read_text(encoding="utf-8")
-        .splitlines()
-    ) == 1
+    assert (
+        len(
+            (tmp_path / "inputs" / "round_zero_index.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+        )
+        == 6
+    )
+    assert (
+        len(
+            (tmp_path / "inputs" / "adversarial_answers.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+        )
+        == 1
+    )
     assert all(outcome.disposition is BatchDisposition.GENERATED for outcome in outcomes)
 
     resumed_outcomes, resumed_summary = batch.run(**run_kwargs)
@@ -186,9 +191,7 @@ def test_batch_builds_complete_paired_matrix_and_resumes(tmp_path: Path) -> None
     assert resumed_summary.cached_runs == 24
     assert resumed_summary.new_model_calls == 0
     assert resumed_summary.trace_model_calls == 72
-    assert all(
-        outcome.disposition is BatchDisposition.CACHED for outcome in resumed_outcomes
-    )
+    assert all(outcome.disposition is BatchDisposition.CACHED for outcome in resumed_outcomes)
 
 
 def test_batch_regenerates_only_a_missing_atomic_trace(tmp_path: Path) -> None:
@@ -306,8 +309,7 @@ def test_analysis_uses_strict_pairs_and_exports_classical_initial_states(
     assert len(result.classical_initial_states) == 8
     assert len(result.graph_metrics) == 2
     assert any(
-        pair.observed_target_count_by_round[0] > 0
-        and pair.induced_target_count_by_round[0] == 0
+        pair.observed_target_count_by_round[0] > 0 and pair.induced_target_count_by_round[0] == 0
         for pair in result.paired_attacks
     )
     for metric in result.graph_metrics:
@@ -323,9 +325,7 @@ def test_analysis_uses_strict_pairs_and_exports_classical_initial_states(
     output_dir = tmp_path / "analysis"
     write_analysis(output_dir, result)
     assert (output_dir / "graph_metrics.csv").exists()
-    assert len(
-        (output_dir / "paired_attacks.jsonl").read_text(encoding="utf-8").splitlines()
-    ) == 16
+    assert len((output_dir / "paired_attacks.jsonl").read_text(encoding="utf-8").splitlines()) == 16
 
 
 def test_analysis_rejects_an_incomplete_trace_set(tmp_path: Path) -> None:

@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import tempfile
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Literal
 
@@ -262,9 +263,9 @@ class BatchExecutionStore:
         round_zero_references: tuple[RoundZeroRecordReference, ...],
         adversarial_answers: tuple[AdversarialAnswer, ...],
     ) -> None:
-        manifest_text = json.dumps(
-            manifest.model_dump(mode="json"), indent=2, sort_keys=True
-        ) + "\n"
+        manifest_text = (
+            json.dumps(manifest.model_dump(mode="json"), indent=2, sort_keys=True) + "\n"
+        )
         artifacts = (
             (self.manifest_path, manifest_text, "batch manifest"),
             (self.plan_path, _jsonl(plan), "batch plan"),
@@ -283,9 +284,7 @@ class BatchExecutionStore:
         )
         for path, content, label in artifacts:
             if path.exists() and path.read_text(encoding="utf-8") != content:
-                raise BatchExecutionConflictError(
-                    f"{label} differs; use a new output directory"
-                )
+                raise BatchExecutionConflictError(f"{label} differs; use a new output directory")
         self.root.mkdir(parents=True, exist_ok=True)
         self.inputs_dir.mkdir(parents=True, exist_ok=True)
         self.traces_dir.mkdir(parents=True, exist_ok=True)
@@ -344,10 +343,14 @@ class BatchExecutionRunner:
         *,
         config: BatchExecutionConfig,
         output_dir: str | Path,
+        max_workers: int = 1,
     ) -> None:
+        if max_workers < 1:
+            raise ValueError("max_workers must be at least one")
         self.engine = engine
         self.config = config
         self.store = BatchExecutionStore(output_dir)
+        self.max_workers = max_workers
 
     def run(
         self,
@@ -378,9 +381,11 @@ class BatchExecutionRunner:
             for experiment_seed in self.config.experiment_seeds
             for replica_slot in range(node_count)
         )
-        selected_adversarial = tuple(
-            adversarial[task.task_id] for task in tasks
-        ) if self.config.include_attacks else ()
+        selected_adversarial = (
+            tuple(adversarial[task.task_id] for task in tasks)
+            if self.config.include_attacks
+            else ()
+        )
         round_zero_references = tuple(
             RoundZeroRecordReference.from_record(record) for record in selected_records
         )
@@ -411,75 +416,96 @@ class BatchExecutionRunner:
 
         task_by_id = {task.task_id: task for task in tasks}
         graph_by_id = {graph.graph_id: graph for graph in graphs}
-        outcomes: list[BatchExecutionOutcome] = []
-        for spec in plan:
-            assignment = assignments[spec.assignment_seed]
-            cached = self.store.load(spec)
-            if cached is not None:
-                self._validate_trace(
+        completed: list[BatchExecutionOutcome | None] = [None] * len(plan)
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            futures: dict[Future[BatchExecutionOutcome], int] = {
+                executor.submit(
+                    self._execute_one,
                     spec=spec,
-                    trace=cached.trace,
-                    assignment=assignment,
-                    graph=graph_by_id[spec.graph_id],
-                    expected_records=record_index,
-                    adversarial_answer=(
-                        adversarial[spec.task_id]
-                        if spec.condition is RunCondition.ATTACK
-                        else None
-                    ),
-                )
-                trace = cached.trace
-                disposition = BatchDisposition.CACHED
-            else:
-                task = task_by_id[spec.task_id]
-                trace = self.engine.run(
-                    graph=graph_by_id[spec.graph_id],
-                    task=task,
-                    condition=spec.condition,
-                    seed=spec.experiment_seed,
-                    attack_node=spec.attack_node,
-                    adversarial_answer=(
-                        adversarial[spec.task_id]
-                        if spec.condition is RunCondition.ATTACK
-                        else None
-                    ),
-                    round_zero_records=selected_records,
-                    initial_assignment=assignment,
-                )
-                self._validate_trace(
-                    spec=spec,
-                    trace=trace,
-                    assignment=assignment,
-                    graph=graph_by_id[spec.graph_id],
-                    expected_records=record_index,
-                    adversarial_answer=(
-                        adversarial[spec.task_id]
-                        if spec.condition is RunCondition.ATTACK
-                        else None
-                    ),
-                )
-                self.store.save(spec, trace)
-                disposition = BatchDisposition.GENERATED
-            outcomes.append(
-                BatchExecutionOutcome(
-                    run_spec_id=spec.run_spec_id,
-                    disposition=disposition,
-                    trace_path=str(self.store.trace_path(spec).resolve()),
-                    run_id=trace.run_id,
-                    final_answer_state=trace.final_answer_state,
-                    final_parsed_answer=trace.final_parsed_answer,
-                    model_calls=trace.total_model_calls,
-                    input_tokens=trace.total_input_tokens,
-                    output_tokens=trace.total_output_tokens,
-                )
-            )
+                    assignments=assignments,
+                    task_by_id=task_by_id,
+                    graph_by_id=graph_by_id,
+                    record_index=record_index,
+                    selected_records=selected_records,
+                    adversarial=adversarial,
+                ): index
+                for index, spec in enumerate(plan)
+            }
+            for future in as_completed(futures):
+                completed[futures[future]] = future.result()
 
-        outcomes_tuple = tuple(outcomes)
+        outcomes_tuple = tuple(outcome for outcome in completed if outcome is not None)
+        if len(outcomes_tuple) != len(plan):
+            raise RuntimeError("batch execution completed with missing outcomes")
         summary = self._summarize(plan=plan, outcomes=outcomes_tuple)
         if summary.completed_runs != manifest.expected_run_count:
             raise RuntimeError("batch completed without the full planned run matrix")
         self.store.write_results(outcomes=outcomes_tuple, summary=summary)
         return outcomes_tuple, summary
+
+    def _execute_one(
+        self,
+        *,
+        spec: ExecutionRunSpec,
+        assignments: dict[int, InitialStateAssignment],
+        task_by_id: dict[str, TaskInstance],
+        graph_by_id: dict[str, GraphSpec],
+        record_index: dict[tuple[str, int, int], RoundZeroRecord],
+        selected_records: tuple[RoundZeroRecord, ...],
+        adversarial: dict[str, AdversarialAnswer],
+    ) -> BatchExecutionOutcome:
+        assignment = assignments[spec.assignment_seed]
+        cached = self.store.load(spec)
+        if cached is not None:
+            self._validate_trace(
+                spec=spec,
+                trace=cached.trace,
+                assignment=assignment,
+                graph=graph_by_id[spec.graph_id],
+                expected_records=record_index,
+                adversarial_answer=(
+                    adversarial[spec.task_id] if spec.condition is RunCondition.ATTACK else None
+                ),
+            )
+            trace = cached.trace
+            disposition = BatchDisposition.CACHED
+        else:
+            task = task_by_id[spec.task_id]
+            trace = self.engine.run(
+                graph=graph_by_id[spec.graph_id],
+                task=task,
+                condition=spec.condition,
+                seed=spec.experiment_seed,
+                attack_node=spec.attack_node,
+                adversarial_answer=(
+                    adversarial[spec.task_id] if spec.condition is RunCondition.ATTACK else None
+                ),
+                round_zero_records=selected_records,
+                initial_assignment=assignment,
+            )
+            self._validate_trace(
+                spec=spec,
+                trace=trace,
+                assignment=assignment,
+                graph=graph_by_id[spec.graph_id],
+                expected_records=record_index,
+                adversarial_answer=(
+                    adversarial[spec.task_id] if spec.condition is RunCondition.ATTACK else None
+                ),
+            )
+            self.store.save(spec, trace)
+            disposition = BatchDisposition.GENERATED
+        return BatchExecutionOutcome(
+            run_spec_id=spec.run_spec_id,
+            disposition=disposition,
+            trace_path=str(self.store.trace_path(spec).resolve()),
+            run_id=trace.run_id,
+            final_answer_state=trace.final_answer_state,
+            final_parsed_answer=trace.final_parsed_answer,
+            model_calls=trace.total_model_calls,
+            input_tokens=trace.total_input_tokens,
+            output_tokens=trace.total_output_tokens,
+        )
 
     def _build_plan(
         self,
@@ -582,8 +608,7 @@ class BatchExecutionRunner:
         if any(record.prompt_version != PROMPT_VERSION for record in selected_records):
             raise ValueError("round-zero prompt version differs from the execution prompt")
         if any(
-            record.requested_model != self.config.requested_model
-            for record in selected_records
+            record.requested_model != self.config.requested_model for record in selected_records
         ):
             raise ValueError("round-zero requested model differs from the batch model")
         if self.config.expected_returned_model is not None and any(
@@ -674,18 +699,14 @@ class BatchExecutionRunner:
                     )
                 continue
             replica_slot = assignment.replica_for_node(turn.node_id)
-            expected = expected_records[
-                (spec.task_id, spec.experiment_seed, replica_slot)
-            ]
+            expected = expected_records[(spec.task_id, spec.experiment_seed, replica_slot)]
             if turn.metadata.get("round_zero_record_id") != expected.record_id:
                 raise BatchExecutionConflictError(
                     f"round-zero record differs for run spec {spec.run_spec_id}"
                 )
         if self.config.expected_returned_model is not None:
             online_models = {
-                turn.model_name
-                for turn in trace.turns
-                if turn.metadata.get("generator_called")
+                turn.model_name for turn in trace.turns if turn.metadata.get("generator_called")
             }
             if online_models and online_models != {self.config.expected_returned_model}:
                 raise BatchExecutionConflictError(
@@ -704,9 +725,7 @@ class BatchExecutionRunner:
             generated_runs=sum(
                 outcome.disposition is BatchDisposition.GENERATED for outcome in outcomes
             ),
-            cached_runs=sum(
-                outcome.disposition is BatchDisposition.CACHED for outcome in outcomes
-            ),
+            cached_runs=sum(outcome.disposition is BatchDisposition.CACHED for outcome in outcomes),
             clean_runs=sum(spec.condition is RunCondition.CLEAN for spec in plan),
             attack_runs=sum(spec.condition is RunCondition.ATTACK for spec in plan),
             trace_model_calls=sum(outcome.model_calls for outcome in outcomes),
@@ -717,10 +736,6 @@ class BatchExecutionRunner:
             ),
             known_input_tokens=sum(outcome.input_tokens or 0 for outcome in outcomes),
             known_output_tokens=sum(outcome.output_tokens or 0 for outcome in outcomes),
-            input_tokens_complete=all(
-                outcome.input_tokens is not None for outcome in outcomes
-            ),
-            output_tokens_complete=all(
-                outcome.output_tokens is not None for outcome in outcomes
-            ),
+            input_tokens_complete=all(outcome.input_tokens is not None for outcome in outcomes),
+            output_tokens_complete=all(outcome.output_tokens is not None for outcome in outcomes),
         )
