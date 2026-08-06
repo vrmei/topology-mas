@@ -1,6 +1,13 @@
 """Small standard-library compatibility helpers."""
 
 try:
+    from datetime import UTC
+except ImportError:  # pragma: no cover - exercised on Python 3.10 only
+    from datetime import timezone
+
+    UTC = timezone.utc
+
+try:
     from enum import StrEnum
 except ImportError:  # pragma: no cover - exercised on Python 3.10 only
     from enum import Enum
@@ -12,4 +19,4 @@ except ImportError:  # pragma: no cover - exercised on Python 3.10 only
             return self.value
 
 
-__all__ = ["StrEnum"]
+__all__ = ["UTC", "StrEnum"]
