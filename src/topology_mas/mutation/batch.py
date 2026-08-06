@@ -6,12 +6,12 @@ import json
 from collections.abc import Iterable
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
-from enum import StrEnum
 from pathlib import Path
 from typing import Protocol, TextIO
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from topology_mas._compat import StrEnum
 from topology_mas.data.gsm8k import task_collection_fingerprint
 from topology_mas.models import TaskInstance
 from topology_mas.mutation.numeric_oracle import OBJECTIVE_ORACLE_VERSION

@@ -6,12 +6,12 @@ import hashlib
 import json
 import os
 import tempfile
-from enum import StrEnum
 from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from topology_mas._compat import StrEnum
 from topology_mas.data.gsm8k import task_collection_fingerprint
 from topology_mas.execution.assignments import (
     InitialStateAssignment,

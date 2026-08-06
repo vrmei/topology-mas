@@ -6,10 +6,11 @@ the stable records written to disk and exchanged between later modules.
 
 from __future__ import annotations
 
-from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from topology_mas._compat import StrEnum
 
 
 class AnswerState(StrEnum):
