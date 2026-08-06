@@ -285,7 +285,7 @@ def main() -> None:
         "started_at": utc_now(),
         "host": socket.gethostname(),
         "pid": os.getpid(),
-        "code_commit": git_commit(project_root),
+        "code_commit": git_commit(project_root) or os.getenv("TOPOLOGY_MAS_CODE_COMMIT"),
         "python": sys.version,
         "tasks": str(tasks_path),
         "task_count": len(tasks),
