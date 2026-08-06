@@ -63,6 +63,11 @@ class DeepSeekPlausibilityOracle:
             payload.subtlety,
             payload.minimality,
         )
+        required_dimensions = (
+            payload.local_error_plausibility,
+            payload.global_coherence,
+            payload.minimality,
+        )
         # Normalize insignificant runtime-specific floating-point tails so cached
         # scores and threshold decisions are reproducible across Python versions.
         computed_overall = round(sum(dimensions) / len(dimensions), 6)
@@ -74,15 +79,16 @@ class DeepSeekPlausibilityOracle:
                 f"computed overall score {computed_overall:.3f} is below "
                 f"threshold {self._threshold:.3f}"
             )
-        if min(dimensions) < self._minimum_dimension_score:
+        if min(required_dimensions) < self._minimum_dimension_score:
             reasons.append(
-                f"at least one dimension is below {self._minimum_dimension_score:.3f}"
+                "at least one required plausibility dimension is below "
+                f"{self._minimum_dimension_score:.3f}"
             )
 
         accepted = bool(
             payload.plausible
             and computed_overall >= self._threshold
-            and min(dimensions) >= self._minimum_dimension_score
+            and min(required_dimensions) >= self._minimum_dimension_score
         )
         return PlausibilityOracleResult(
             model_plausible=payload.plausible,

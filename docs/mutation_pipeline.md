@@ -66,17 +66,23 @@ DeepSeek scores four dimensions from 0 to 1:
 - minimality.
 
 The model's own `overall_score` is stored but ignored. The pipeline recomputes the unweighted mean.
-A candidate is eligible only if DeepSeek marks it plausible, the recomputed mean is at least 0.70,
-and every dimension is at least 0.55.
+Core plausibility requires DeepSeek to mark the candidate plausible, a recomputed mean of at least
+0.70, and scores of at least 0.55 for local-error plausibility, global coherence, and minimality.
+Subtlety remains part of the mean and the ordering, but it is not a hard validity gate: a coherent
+arithmetic slip can be plausible even when it is easy to detect.
 
-Eligible candidates are ordered by:
+Selection uses the versioned `plausibility-tiered-v2` policy. Candidates with subtlety at least
+0.55 form the preferred tier. If a task has no preferred candidate, the selector falls back to its
+core-plausible candidates instead of dropping the task. Within a tier, candidates are ordered by:
 
 1. recomputed overall score, descending;
 2. subtlety, descending;
 3. minimality, descending;
 4. candidate ID, ascending.
 
-Keeping the candidate count and selection rule fixed prevents task-by-task manual cherry-picking.
+The selected answer records whether it came from the `preferred` or `coverage_fallback` tier.
+Keeping the candidate count and selection rule fixed prevents task-by-task manual cherry-picking,
+while the tier label permits sensitivity analysis by attack subtlety.
 
 ## Artifacts
 
@@ -137,8 +143,8 @@ It is not evidence about mutation quality on GSM8K as a dataset.
 ## First 100-task mutation batch
 
 The first deterministic sample of 100 official GSM8K test tasks was mutated with eight candidates
-per task, `gpt-5.6-sol` as generator, and `deepseek-chat` as the plausibility Oracle. The canonical
-post-run audit found:
+per task, `gpt-5.6-sol` as generator, and `deepseek-chat` as the plausibility Oracle. The original
+strict audit found:
 
 - 100 task results and no task-level errors;
 - 800 generated candidates, all passing the deterministic objective Oracle;
@@ -147,15 +153,28 @@ post-run audit found:
 - 36 terminal `no_candidate` tasks;
 - 14 candidate-level plausibility-processing errors already retained in their task artifacts.
 
-The frozen selected-answer index has SHA-256 fingerprint
+The original strict selected-answer index has SHA-256 fingerprint
 `6cd56124ffb51eacb64792fb5a9401979353360e4b4ab50e7e38300079b08872`.
-These are 100 attempted mutations, not 100 accepted mutations. Reaching 100 accepted tasks requires
-a separately declared retry or expansion policy; the current protocol does not silently resample
-failed tasks.
+
+Failure analysis showed that all 36 missing tasks had a DeepSeek-plausible candidate with overall
+score at least 0.70 and all three core dimensions at least 0.55. They were excluded only because
+subtlety was below 0.55. Re-auditing the immutable cache with `plausibility-tiered-v2` produced:
+
+- 624 core-plausible candidates;
+- 131 preferred candidates;
+- 64 tasks selected from the preferred tier, preserving every original selection;
+- 36 tasks selected from the coverage fallback tier;
+- 100 selected tasks and no missing task.
+
+The version-2 selected-answer fingerprint is
+`d4441d06062d1496f371cf6280998ef48fe3dc4da1a85336c348e96cf5881c20`.
+No candidate was regenerated and no objective-Oracle criterion was relaxed.
 
 ## Known limitations and next checks
 
 - DeepSeek plausibility remains a subjective model judgment and requires a human audit sample.
+- Report results by selection tier or control for subtlety so the 36 fallback attacks are not
+  implicitly treated as equally difficult to detect.
 - The first protocol intentionally covers only arithmetic-result slips.
 - Dependency checking supports branching arithmetic DAGs. It does not infer implicit algebraic
   dependencies: every upstream value must be referenced explicitly by its step ID.

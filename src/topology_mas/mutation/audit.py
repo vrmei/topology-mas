@@ -12,13 +12,20 @@ from pydantic import BaseModel, ConfigDict, Field
 from topology_mas.models import AdversarialAnswer
 from topology_mas.mutation.pipeline import MutationPipeline
 from topology_mas.mutation.schemas import MutationRunResult
+from topology_mas.mutation.selection import (
+    SELECTION_POLICY_VERSION,
+    is_coverage_candidate,
+    is_preferred_candidate,
+    select_candidate_evaluation,
+)
 from topology_mas.mutation.storage import fingerprint_jsonable, task_directory_name
 
 
 class MutationCacheAudit(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    schema_version: int = 1
+    schema_version: int = 2
+    selection_policy_version: str = SELECTION_POLICY_VERSION
     task_count: int = Field(ge=1)
     result_count: int = Field(ge=1)
     selected_task_count: int = Field(ge=0)
@@ -26,6 +33,9 @@ class MutationCacheAudit(BaseModel):
     total_candidates: int = Field(ge=0)
     objective_passed_candidates: int = Field(ge=0)
     eligible_candidates: int = Field(ge=0)
+    preferred_candidates: int = Field(ge=0)
+    preferred_selected_task_count: int = Field(ge=0)
+    coverage_fallback_task_count: int = Field(ge=0)
     processing_error_candidates: int = Field(ge=0)
     selected_answers_fingerprint: str = Field(min_length=64, max_length=64)
     selected_task_ids: tuple[str, ...]
@@ -60,10 +70,16 @@ def audit_mutation_cache(
 
     answers: list[AdversarialAnswer] = []
     no_candidate_ids: list[str] = []
+    preferred_selected_task_count = 0
+    coverage_fallback_task_count = 0
     for result in results:
-        if result.selected_candidate_id is None:
+        selected_with_tier = select_candidate_evaluation(result.evaluations, result.config)
+        if selected_with_tier is None:
             no_candidate_ids.append(result.task_id)
             continue
+        _, selection_tier = selected_with_tier
+        preferred_selected_task_count += int(selection_tier == "preferred")
+        coverage_fallback_task_count += int(selection_tier == "coverage_fallback")
         answer = MutationPipeline.to_adversarial_answer(result)
         result_fingerprint = fingerprint_jsonable(result)
         answers.append(
@@ -90,10 +106,17 @@ def audit_mutation_cache(
             for evaluation in result.evaluations
         ),
         eligible_candidates=sum(
-            evaluation.eligible
+            is_coverage_candidate(evaluation, result.config)
             for result in results
             for evaluation in result.evaluations
         ),
+        preferred_candidates=sum(
+            is_preferred_candidate(evaluation, result.config)
+            for result in results
+            for evaluation in result.evaluations
+        ),
+        preferred_selected_task_count=preferred_selected_task_count,
+        coverage_fallback_task_count=coverage_fallback_task_count,
         processing_error_candidates=sum(
             evaluation.processing_error is not None
             for result in results

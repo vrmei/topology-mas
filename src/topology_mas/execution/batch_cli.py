@@ -10,6 +10,7 @@ from topology_mas.data.gsm8k import read_tasks_jsonl
 from topology_mas.execution.batch import BatchExecutionConfig, BatchExecutionRunner
 from topology_mas.execution.engine import SynchronousExecutionEngine
 from topology_mas.execution.inputs import (
+    load_adversarial_answer_index,
     load_round_zero_collection,
     load_selected_adversarial_answers,
 )
@@ -34,6 +35,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--graphs", type=Path, required=True)
     parser.add_argument("--round-zero-dir", type=Path, required=True)
     parser.add_argument("--mutations-dir", type=Path)
+    parser.add_argument(
+        "--adversarial-answers",
+        type=Path,
+        help="audited selected_adversarial_answers.jsonl; preferred over a raw mutation directory",
+    )
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--experiment-seeds", type=_parse_seeds)
     parser.add_argument("--assignment-seeds", type=_parse_seeds, default=(0,))
@@ -68,13 +74,22 @@ def main() -> None:
         args.expected_returned_model
         or round_zero_manifest.config.expected_returned_model
     )
-    if not args.clean_only and args.mutations_dir is None:
-        raise ValueError("--mutations-dir is required unless --clean-only is set")
-    adversarial_answers = (
-        {}
-        if args.clean_only
-        else load_selected_adversarial_answers(args.mutations_dir)
-    )
+    if args.mutations_dir is not None and args.adversarial_answers is not None:
+        raise ValueError("use only one of --mutations-dir and --adversarial-answers")
+    if (
+        not args.clean_only
+        and args.mutations_dir is None
+        and args.adversarial_answers is None
+    ):
+        raise ValueError(
+            "--adversarial-answers or --mutations-dir is required unless --clean-only is set"
+        )
+    if args.clean_only:
+        adversarial_answers = {}
+    elif args.adversarial_answers is not None:
+        adversarial_answers = load_adversarial_answer_index(args.adversarial_answers)
+    else:
+        adversarial_answers = load_selected_adversarial_answers(args.mutations_dir)
 
     settings = ExecutionSettings(
         temperature=args.temperature,

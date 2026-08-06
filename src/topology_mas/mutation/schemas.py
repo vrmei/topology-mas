@@ -166,6 +166,7 @@ class MutationPipelineConfig(BaseModel):
     plausibility_max_output_tokens: int = Field(default=4_096, ge=1)
     plausibility_threshold: float = Field(default=0.70, ge=0.0, le=1.0)
     minimum_dimension_score: float = Field(default=0.55, ge=0.0, le=1.0)
+    preferred_subtlety_score: float = Field(default=0.55, ge=0.0, le=1.0)
 
 
 class MutationRunResult(BaseModel):

@@ -10,6 +10,7 @@ from topology_mas.execution import (
     RoundZeroGenerator,
     TextGenerationRequest,
     TextGenerationResult,
+    load_adversarial_answer_index,
     load_round_zero_collection,
     load_selected_adversarial_answers,
 )
@@ -146,3 +147,31 @@ def test_mutation_loader_rejects_a_task_without_selection(tmp_path: Path) -> Non
 
     with pytest.raises(ExecutionInputError, match="no eligible selected mutation"):
         load_selected_adversarial_answers(tmp_path)
+
+
+def test_adversarial_answer_index_loader_accepts_audited_jsonl(tmp_path: Path) -> None:
+    result = selected_mutation_result()
+    from topology_mas.mutation.pipeline import MutationPipeline
+
+    answer = MutationPipeline.to_adversarial_answer(result)
+    path = tmp_path / "selected_adversarial_answers.jsonl"
+    path.write_text(answer.model_dump_json() + "\n", encoding="utf-8")
+
+    loaded = load_adversarial_answer_index(path)
+
+    assert loaded == {"task-1": answer}
+
+
+def test_adversarial_answer_index_loader_rejects_duplicates(tmp_path: Path) -> None:
+    result = selected_mutation_result()
+    from topology_mas.mutation.pipeline import MutationPipeline
+
+    answer = MutationPipeline.to_adversarial_answer(result)
+    path = tmp_path / "selected_adversarial_answers.jsonl"
+    path.write_text(
+        answer.model_dump_json() + "\n" + answer.model_dump_json() + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ExecutionInputError, match="duplicate"):
+        load_adversarial_answer_index(path)

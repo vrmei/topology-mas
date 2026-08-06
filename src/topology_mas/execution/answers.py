@@ -11,7 +11,7 @@ _FINAL_ANSWER = re.compile(
     r"(?im)(?:\*\*)?\s*FINAL[\s_]+ANSWER\s*:\s*"
     r"(?:FINAL[\s_]+ANSWER\s*:\s*)?(.+?)\s*(?:\*\*)?\s*$"
 )
-_GSM8K_MARKER = re.compile(r"(?m)^\s*####\s*([^\s]+)\s*$")
+_GSM8K_MARKER = re.compile(r"####\s*([^\s]+)\s*$")
 _BOXED_ANSWER = re.compile(
     r"(?im)^\s*(?:\\\[\s*)?\\boxed\{([^{}]+)\}(?:\s*\\\])?\s*$"
 )

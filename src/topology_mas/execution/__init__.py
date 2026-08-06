@@ -23,6 +23,7 @@ from topology_mas.execution.engine import SynchronousExecutionEngine
 from topology_mas.execution.generation import TextGenerator
 from topology_mas.execution.inputs import (
     ExecutionInputError,
+    load_adversarial_answer_index,
     load_round_zero_collection,
     load_selected_adversarial_answers,
 )
@@ -67,6 +68,7 @@ __all__ = [
     "BatchExecutionSummary",
     "ExecutionSettings",
     "ExecutionInputError",
+    "load_adversarial_answer_index",
     "ExecutionRunSpec",
     "InitialStateAssignment",
     "InvalidTextCompletionError",

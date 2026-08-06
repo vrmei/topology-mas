@@ -115,3 +115,38 @@ def test_invalid_json_retries_same_model_and_preserves_attempts() -> None:
     assert calls == 2
     assert completion.requested_model == "deepseek-chat"
     assert len(completion.raw_attempts) == 2
+
+
+def test_length_truncated_json_retry_doubles_output_budget() -> None:
+    observed_limits: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content)
+        observed_limits.append(payload["max_tokens"])
+        content = "" if len(observed_limits) == 1 else '{"ok": true}'
+        finish_reason = "length" if len(observed_limits) == 1 else "stop"
+        return httpx.Response(
+            200,
+            json={
+                "model": "deepseek-v4-flash",
+                "choices": [
+                    {"message": {"content": content}, "finish_reason": finish_reason}
+                ],
+            },
+        )
+
+    with OpenAICompatibleJSONClient(
+        base_url="https://example.test/v1",
+        api_key_env="UNUSED",
+        api_key="secret",
+        max_json_attempts=2,
+        transport=httpx.MockTransport(handler),
+    ) as client:
+        completion = client.complete_json(
+            model="deepseek-chat",
+            messages=[{"role": "user", "content": "test"}],
+            max_output_tokens=200,
+        )
+
+    assert observed_limits == [200, 400]
+    assert completion.content == {"ok": True}

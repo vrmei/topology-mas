@@ -11,6 +11,10 @@ from topology_mas.mutation.schemas import (
     MutationPipelineConfig,
     MutationRunResult,
 )
+from topology_mas.mutation.selection import (
+    SELECTION_POLICY_VERSION,
+    select_candidate_evaluation,
+)
 from topology_mas.mutation.storage import MutationArtifactStore
 from topology_mas.providers import InvalidJSONCompletionError, JSONChatClient
 
@@ -86,7 +90,8 @@ class MutationPipeline:
                 )
             )
 
-        selected = self._select(evaluations)
+        selected_with_tier = select_candidate_evaluation(evaluations, self.config)
+        selected = selected_with_tier[0] if selected_with_tier is not None else None
         result = MutationRunResult(
             task_id=task.task_id,
             config=self.config,
@@ -113,29 +118,11 @@ class MutationPipeline:
         return payload
 
     @staticmethod
-    def _select(evaluations: list[CandidateEvaluation]) -> CandidateEvaluation | None:
-        eligible = [evaluation for evaluation in evaluations if evaluation.eligible]
-        if not eligible:
-            return None
-        return sorted(
-            eligible,
-            key=lambda evaluation: (
-                -evaluation.plausibility.overall_score,  # type: ignore[union-attr]
-                -evaluation.plausibility.subtlety,  # type: ignore[union-attr]
-                -evaluation.plausibility.minimality,  # type: ignore[union-attr]
-                evaluation.candidate.candidate_id,
-            ),
-        )[0]
-
-    @staticmethod
     def to_adversarial_answer(result: MutationRunResult) -> AdversarialAnswer:
-        if result.selected_candidate_id is None:
+        selected_with_tier = select_candidate_evaluation(result.evaluations, result.config)
+        if selected_with_tier is None:
             raise ValueError("mutation run did not produce an eligible candidate")
-        selected = next(
-            evaluation
-            for evaluation in result.evaluations
-            if evaluation.candidate.candidate_id == result.selected_candidate_id
-        )
+        selected, selection_tier = selected_with_tier
         assert selected.plausibility is not None
         return AdversarialAnswer(
             task_id=result.task_id,
@@ -149,5 +136,7 @@ class MutationPipeline:
                 "candidate_id": selected.candidate.candidate_id,
                 "plausibility_model": result.config.plausibility_model,
                 "plausibility_returned_model": selected.plausibility.returned_model,
+                "selection_policy_version": SELECTION_POLICY_VERSION,
+                "selection_tier": selection_tier,
             },
         )

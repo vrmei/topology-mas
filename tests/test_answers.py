@@ -10,6 +10,7 @@ def test_parser_accepts_explicit_provider_format_variants() -> None:
         "The calculation is complete. FINAL_ANSWER: 73",
         "work\nFinal answer: \\$64.00",
         "work\n\\[ \\boxed{73} \\]",
+        "The propagated arithmetic gives the wrong result. #### 73",
     )
 
     assert [parse_numeric_answer(value) for value in variants] == [
@@ -20,9 +21,11 @@ def test_parser_accepts_explicit_provider_format_variants() -> None:
         "73",
         "64",
         "73",
+        "73",
     ]
 
 
 def test_parser_still_rejects_unmarked_trailing_numbers() -> None:
     assert parse_numeric_answer("The calculation is 70 + 3 = 73") is None
     assert parse_numeric_answer("The answer is probably 73") is None
+    assert parse_numeric_answer("A draft used #### 71, but the final prose says 73") is None

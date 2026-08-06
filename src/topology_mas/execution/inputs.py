@@ -21,6 +21,40 @@ class ExecutionInputError(ValueError):
     """A preprocessing artifact is incomplete, incompatible, or internally inconsistent."""
 
 
+def load_adversarial_answer_index(
+    path: str | Path,
+) -> dict[str, AdversarialAnswer]:
+    """Load a compact, audited selected-answer JSONL artifact."""
+
+    source = Path(path)
+    if not source.exists():
+        raise ExecutionInputError(f"adversarial-answer index is missing at {source}")
+    answers: dict[str, AdversarialAnswer] = {}
+    for line_number, line in enumerate(
+        source.read_text(encoding="utf-8").splitlines(), start=1
+    ):
+        if not line.strip():
+            continue
+        try:
+            answer = AdversarialAnswer.model_validate_json(line)
+        except ValueError as exc:
+            raise ExecutionInputError(
+                f"invalid adversarial answer at {source}:{line_number}"
+            ) from exc
+        if not answer.accepted:
+            raise ExecutionInputError(
+                f"adversarial answer is not Oracle-accepted at {source}:{line_number}"
+            )
+        if answer.task_id in answers:
+            raise ExecutionInputError(
+                f"duplicate adversarial answer for {answer.task_id!r} at {source}:{line_number}"
+            )
+        answers[answer.task_id] = answer
+    if not answers:
+        raise ExecutionInputError(f"adversarial-answer index is empty at {source}")
+    return answers
+
+
 def load_round_zero_collection(
     root: str | Path,
 ) -> tuple[RoundZeroManifest, tuple[RoundZeroRecord, ...]]:

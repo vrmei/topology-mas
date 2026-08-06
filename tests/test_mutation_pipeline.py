@@ -138,3 +138,68 @@ def test_pipeline_filters_before_judging_and_persists_all_candidates(tmp_path: P
     assert (task_dir / "generator_response.json").exists()
     assert (task_dir / "candidates" / "c01.json").exists()
     assert (task_dir / "candidates" / "c02.json").exists()
+
+
+def test_low_subtlety_does_not_override_core_plausibility() -> None:
+    generator_payload = {
+        "candidates": [
+            {
+                "candidate_id": "c01",
+                "mutation_type": "arithmetic_result",
+                "mutated_step_id": "s1",
+                "steps": [
+                    {
+                        "step_id": "s1",
+                        "expression": "6*8",
+                        "claimed_result": "42",
+                        "explanation": "Use forty-two for the six groups.",
+                        "is_mutated": True,
+                        "depends_on": [],
+                    },
+                    {
+                        "step_id": "s2",
+                        "expression": "s1+2",
+                        "claimed_result": "44",
+                        "explanation": "Add the final two.",
+                        "is_mutated": False,
+                        "depends_on": ["s1"],
+                    },
+                ],
+                "final_answer": "44",
+                "full_response": "Six groups give 42, and two more give 44.\n#### 44",
+            }
+        ]
+    }
+    judge_payload = {
+        "plausible": True,
+        "local_error_plausibility": 0.9,
+        "global_coherence": 1.0,
+        "subtlety": 0.3,
+        "minimality": 1.0,
+        "overall_score": 0.1,
+        "rejection_reasons": [],
+        "notes": "Plausible and coherent, but easy to detect.",
+    }
+    client = FakeJSONClient(
+        [
+            completion("gpt-5.6-sol", generator_payload),
+            completion("deepseek-chat", judge_payload),
+        ]
+    )
+    task = TaskInstance(
+        task_id="gsm8k/test/low-subtlety",
+        dataset="gsm8k",
+        split="test",
+        prompt="Six boxes contain eight items each, plus two loose items. How many items?",
+        reference_answer="50",
+        oracle_type="numeric",
+    )
+
+    result = MutationPipeline(
+        client,
+        config=MutationPipelineConfig(candidate_count=1),
+    ).run(task)
+
+    assert result.selected_candidate_id == "c01"
+    assert result.evaluations[0].plausibility is not None
+    assert result.evaluations[0].plausibility.plausible is True

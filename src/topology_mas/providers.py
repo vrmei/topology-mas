@@ -131,7 +131,9 @@ class OpenAICompatibleJSONClient:
             payload["temperature"] = profile.temperature
 
         raw_attempts: list[dict[str, Any]] = []
+        current_max_output_tokens = max_output_tokens
         for _ in range(self._max_json_attempts):
+            payload[profile.output_token_parameter] = current_max_output_tokens
             response = self._post_with_retry(payload)
             raw = response.json()
             raw_attempts.append(raw)
@@ -140,6 +142,12 @@ class OpenAICompatibleJSONClient:
                 raw_content = choice["message"]["content"]
                 content = json.loads(raw_content)
             except (KeyError, IndexError, TypeError, json.JSONDecodeError):
+                try:
+                    finish_reason = raw["choices"][0].get("finish_reason")
+                except (KeyError, IndexError, TypeError):
+                    finish_reason = None
+                if finish_reason == "length":
+                    current_max_output_tokens *= 2
                 continue
             if not isinstance(content, dict):
                 continue

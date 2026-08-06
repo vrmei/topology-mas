@@ -13,9 +13,10 @@
 - Plausibility Oracle: requested `deepseek-chat`; provider returned `deepseek-v4-flash`
 - Candidates per task: 8
 - Wrongness: deterministic arithmetic and final-answer Oracle
-- Plausibility eligibility: provider verdict, mean score at least 0.70, and every dimension at
-  least 0.55
-- Selection: highest eligible score with deterministic tie-breaking
+- Core plausibility eligibility: provider verdict, mean score at least 0.70, and local-error
+  plausibility, global coherence, and minimality each at least 0.55
+- Preferred tier: subtlety at least 0.55
+- Selection: highest-scoring preferred candidate; otherwise highest-scoring core-plausible fallback
 
 ## Canonical audited result
 
@@ -62,3 +63,24 @@ full task directories for traceability.
 This batch establishes a cache of 64 strictly accepted target errors from 100 attempted tasks. It
 does not yet establish that every selected mutation is persuasive to humans. A blinded human audit
 sample remains necessary before treating the plausibility score as validated measurement.
+
+## Version-2 coverage audit
+
+Candidate-level analysis found that the 36 missing tasks did not fail objective verification or
+the main plausibility judgment. Every one had a candidate that DeepSeek marked plausible, with mean
+score at least 0.70 and all core dimensions at least 0.55. The sole rejection was a subtlety score
+below the old universal 0.55 floor. Treating detectability as a recorded attack-strength variable,
+rather than a validity requirement, gives the following tiered audit without new API calls:
+
+| Measure | Count |
+|---|---:|
+| Core-plausible candidates | 624 |
+| Preferred candidates | 131 |
+| Preferred selected tasks | 64 |
+| Coverage-fallback selected tasks | 36 |
+| Total selected tasks | 100 |
+| Missing tasks | 0 |
+
+All 64 original selections are unchanged. The version-2 index is stored under
+`selection-index-v2/` and has fingerprint
+`d4441d06062d1496f371cf6280998ef48fe3dc4da1a85336c348e96cf5881c20`.
