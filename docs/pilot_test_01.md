@@ -20,7 +20,7 @@ This is a signal-existence test, not an effect-size or significance study.
 - Round zero: five cached independent responses
 - Attack: the same oracle-accepted target answer `48` at every non-readout position
 - Runs: 5 graphs x (1 clean + 4 attacks) = 25 traces
-- Expected online calls under active-node pruning: 167
+- Expected API calls under active-node pruning: 167
 
 ## Primary diagnostic
 
@@ -45,7 +45,7 @@ Operationally, inspect:
 
 - Code commit used for execution: `756bb7d`
 - Completed traces: 25 / 25
-- Online model calls: 167
+- API model calls: 167
 - Input tokens: 47,290
 - Output tokens: 12,430
 - Clean readout accuracy: 5 / 5

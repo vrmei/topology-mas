@@ -21,12 +21,12 @@ paired or averaged separately.
 
 ## Preflight
 
-The runner performs all checks before its first online model call:
+The runner performs all checks before its first uncached inference request:
 
 - task IDs and graph IDs are unique;
 - the graph collection is one fixed stratum;
 - every `(task, experiment_seed, replica_slot)` record exists exactly once;
-- Round-zero and online execution use the same prompt and pinned model identity;
+- Round-zero and post-cache execution use the same prompt and pinned model identity;
 - every attacked task has one Oracle-accepted adversarial answer;
 - the selected mutation remains eligible under its persisted objective and plausibility verdicts;
 - readout is excluded from the attack positions.
@@ -63,7 +63,7 @@ resume, a matching trace is reused; a missing trace is executed; a malformed, ta
 identity-mismatched trace stops the batch. Summary and outcome files are regenerated atomically after
 the complete plan finishes.
 
-`trace_model_calls` counts the online calls represented by all completed traces. `new_model_calls`
+`trace_model_calls` counts inference calls represented by all completed traces. `new_model_calls`
 counts calls represented by traces generated during the current invocation. A fully cached resume
 therefore reports the original trace cost but zero new calls.
 

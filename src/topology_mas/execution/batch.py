@@ -705,12 +705,12 @@ class BatchExecutionRunner:
                     f"round-zero record differs for run spec {spec.run_spec_id}"
                 )
         if self.config.expected_returned_model is not None:
-            online_models = {
+            runtime_models = {
                 turn.model_name for turn in trace.turns if turn.metadata.get("generator_called")
             }
-            if online_models and online_models != {self.config.expected_returned_model}:
+            if runtime_models and runtime_models != {self.config.expected_returned_model}:
                 raise BatchExecutionConflictError(
-                    f"returned model differs for run spec {spec.run_spec_id}: {online_models}"
+                    f"returned model differs for run spec {spec.run_spec_id}: {runtime_models}"
                 )
 
     @staticmethod

@@ -61,6 +61,6 @@ the clean-utility axis may have limited resolution. A topology experiment is req
 any claim about whether this ceiling materially suppresses graph-level differences.
 
 At positive temperature, three repeated requests with the same seed produced different surface
-forms through the gateway. Round-zero caching therefore remains mandatory. Online communication
-rounds should initially use temperature zero; this is a control choice, not evidence that the
+forms through the gateway. Round-zero caching therefore remains mandatory. Post-Round-zero API
+inference should initially use temperature zero; this is a control choice, not evidence that the
 gateway is deterministic for every prompt.

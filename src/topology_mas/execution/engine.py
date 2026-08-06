@@ -16,7 +16,7 @@ from topology_mas.execution.schemas import (
 )
 from topology_mas.execution.seeding import (
     anonymous_message_order_key,
-    online_replica_round_seed,
+    runtime_replica_round_seed,
     stable_fingerprint,
     stable_id,
 )
@@ -130,7 +130,7 @@ class SynchronousExecutionEngine:
                     if initial_assignment is not None
                     else node_id
                 )
-                generation_seed = online_replica_round_seed(
+                generation_seed = runtime_replica_round_seed(
                     experiment_seed=seed,
                     task_id=task.task_id,
                     replica_slot=stochastic_stream_slot,
@@ -152,8 +152,7 @@ class SynchronousExecutionEngine:
                     generator_called = False
                     cached = assigned_initial[node_id]
                     prompt_messages = tuple(
-                        ChatMessage.model_validate(message)
-                        for message in cached.prompt_messages
+                        ChatMessage.model_validate(message) for message in cached.prompt_messages
                     )
                     if prompt_messages != expected_prompt_messages:
                         raise ValueError("cached round-zero prompt differs from execution prompt")
@@ -202,9 +201,7 @@ class SynchronousExecutionEngine:
                     node_id=node_id,
                     incoming_message_ids=tuple(message.message_id for message in incoming),
                     previous_raw_output=previous,
-                    prompt_messages=tuple(
-                        message.model_dump() for message in prompt_messages
-                    ),
+                    prompt_messages=tuple(message.model_dump() for message in prompt_messages),
                     generation_seed=generation_seed,
                     raw_output=completion.raw_text,
                     parsed_answer=parsed,
@@ -266,8 +263,7 @@ class SynchronousExecutionEngine:
         final_turn = next(
             turn
             for turn in reversed(turns)
-            if turn.node_id == graph.readout_node
-            and turn.round_index == graph.max_rounds
+            if turn.node_id == graph.readout_node and turn.round_index == graph.max_rounds
         )
         return RunTrace(
             run_id=run_id,
@@ -284,9 +280,7 @@ class SynchronousExecutionEngine:
                 initial_assignment.assignment_seed if initial_assignment else None
             ),
             structural_node_to_replica=(
-                initial_assignment.structural_node_to_replica
-                if initial_assignment
-                else None
+                initial_assignment.structural_node_to_replica if initial_assignment else None
             ),
             seed=seed,
             prompt_version=PROMPT_VERSION,
@@ -327,9 +321,7 @@ class SynchronousExecutionEngine:
             if adversarial_answer.task_id != task.task_id:
                 raise ValueError("target error belongs to a different task")
         if (round_zero_records is None) != (initial_assignment is None):
-            raise ValueError(
-                "round_zero_records and initial_assignment must be provided together"
-            )
+            raise ValueError("round_zero_records and initial_assignment must be provided together")
 
     @staticmethod
     def _assigned_initial_records(

@@ -63,12 +63,15 @@ assignment is reused for paired graph comparisons. Multiple assignment seeds can
 the nuisance effect of where independent initial samples were placed. Structural node IDs remain in
 the trace but never enter model-facing text.
 
-Online rounds use deterministic replica-round seeds. The stochastic stream therefore moves with the
+Post-Round-zero inference uses deterministic replica-round seeds. The stochastic stream moves with the
 assigned initial state when a graph is relabeled:
 
 ```text
-seed_online = H("online-replica-round", experiment_seed, task_id, replica_slot, round_index)
+seed_runtime = H("online-replica-round", experiment_seed, task_id, replica_slot, round_index)
 ```
+
+`online-replica-round` is retained only as a legacy persisted hash namespace. It does not indicate
+whether inference is executed by a local model server or an external API.
 
 `graph_id` is deliberately excluded from both seed schemes. It remains part of `run_id`, so artifacts
 cannot collide.

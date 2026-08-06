@@ -22,15 +22,17 @@ def stable_fingerprint(*parts: object) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-def online_replica_round_seed(
+def runtime_replica_round_seed(
     *,
     experiment_seed: int,
     task_id: str,
     replica_slot: int,
     round_index: int,
 ) -> int:
-    """Online sampling stream that moves with an assigned anonymous replica."""
+    """Post-Round-zero inference stream attached to an anonymous replica."""
 
+    # Preserve the persisted seed namespace used by existing artifacts. Here "online"
+    # is a legacy hash salt, not a claim that inference uses an external API.
     return stable_integer(
         "online-replica-round",
         experiment_seed,

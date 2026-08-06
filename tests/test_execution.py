@@ -83,9 +83,7 @@ def initial_records(
 ) -> tuple[RoundZeroRecord, ...]:
     prompt_messages = tuple(
         message.model_dump()
-        for message in build_node_messages(
-            task(), previous_output=None, incoming_messages=()
-        )
+        for message in build_node_messages(task(), previous_output=None, incoming_messages=())
     )
     records = []
     for replica_slot, answer in enumerate(node_answers):
@@ -109,9 +107,7 @@ def initial_records(
                 prompt_messages=prompt_messages,
                 raw_output=raw_output,
                 parsed_answer=answer,
-                answer_state=(
-                    AnswerState.CORRECT if answer == "42" else AnswerState.OTHER_ERROR
-                ),
+                answer_state=(AnswerState.CORRECT if answer == "42" else AnswerState.OTHER_ERROR),
                 is_correct=answer == "42",
                 requested_model="cached-model",
                 returned_model="cached-model",
@@ -228,9 +224,7 @@ def test_target_error_replay_replaces_attacker_calls_and_propagates() -> None:
 
 
 def test_attack_content_changes_run_identity() -> None:
-    first = SynchronousExecutionEngine(
-        CapturingGenerator(lambda _: "FINAL_ANSWER: 42")
-    ).run(
+    first = SynchronousExecutionEngine(CapturingGenerator(lambda _: "FINAL_ANSWER: 42")).run(
         graph=chain(),
         task=task(),
         condition=RunCondition.ATTACK,
@@ -238,9 +232,7 @@ def test_attack_content_changes_run_identity() -> None:
         adversarial_answer=target_error(),
         seed=0,
     )
-    second = SynchronousExecutionEngine(
-        CapturingGenerator(lambda _: "FINAL_ANSWER: 42")
-    ).run(
+    second = SynchronousExecutionEngine(CapturingGenerator(lambda _: "FINAL_ANSWER: 42")).run(
         graph=chain(),
         task=task(),
         condition=RunCondition.ATTACK,
@@ -311,7 +303,7 @@ def test_round_zero_prompt_and_seed_are_paired_across_graphs() -> None:
         assert chain_request.messages == star_request.messages
 
 
-def test_cached_round_zero_is_assigned_without_online_model_calls() -> None:
+def test_cached_round_zero_is_assigned_without_runtime_inference_calls() -> None:
     generator = CapturingGenerator(lambda _: "Updated.\nFINAL_ANSWER: 42")
     assignment = InitialStateAssignment(
         assignment_id="identity",
@@ -373,8 +365,7 @@ def test_isomorphic_relabeling_is_equivariant_with_matched_initial_states() -> N
 
     def symmetric_update(request: TextGenerationRequest) -> str:
         visible_answers = [
-            int(value)
-            for value in re.findall(r"FINAL_ANSWER:\s*(\d+)", user_content(request))
+            int(value) for value in re.findall(r"FINAL_ANSWER:\s*(\d+)", user_content(request))
         ]
         return f"Symmetric minimum update.\nFINAL_ANSWER: {min(visible_answers)}"
 

@@ -15,7 +15,7 @@ initial states, and messages are relabeled together.
 
 Round-zero records are keyed by `(task, replica_slot, experiment_seed)` and generated without a graph.
 Every graph run records a permutation from structural nodes to replica slots. Cache replay must not
-call the online generator or add offline cache tokens to runtime totals.
+call the runtime generator or add cached-generation tokens to runtime totals.
 
 Expected invariant: with the same cache and assignment, paired graph runs start from identical
 node-level initial texts. Under graph relabeling, the assignment must be relabeled with the graph.
@@ -27,7 +27,7 @@ states moved through the same isomorphism. Compare every relabeled node state at
 
 Expected invariant: traces are identical after mapping node labels back. Failure indicates label,
 ordering, scheduling, assignment, or stochastic-stream leakage in the executor. The comparison also
-checks that online generation seeds move with the assigned replica rather than remaining attached to
+checks that runtime inference seeds move with the assigned replica rather than remaining attached to
 arbitrary structural labels.
 
 Passing this check does **not** establish that a stochastic provider model is isomorphism invariant.
