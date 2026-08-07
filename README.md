@@ -205,3 +205,21 @@ python scripts/analyze_classical_dynamics.py `
 
 See [the classical dynamics protocol](docs/classical_dynamics_protocol.md) for state projection,
 update rules, tie handling, metrics, and claim boundaries.
+
+## Test one global DeGroot susceptibility
+
+Sweep a fixed damping grid and select one susceptibility parameter using leave-one-entire-graph-out
+validation. Selection uses target-error induction only; accuracy drop and clean utility remain
+untuned secondary tests.
+
+```powershell
+python scripts/analyze_damped_degroot.py `
+  --run-root runs/scale-pilot100-g5-r8-temp03-v1 `
+  --output-dir runs/scale-pilot100-g5-r8-temp03-v1/posthoc-damped-degroot-v1 `
+  --bootstrap-replicates 2000 `
+  --seed 20260807
+```
+
+See [the damped DeGroot protocol](docs/damped_degroot_protocol.md) for the update equation,
+held-out-graph selection rule, endpoint checks, and claim boundaries. The first completed pilot is
+summarized in [the damped DeGroot pilot result](docs/pilot_damped_degroot_results.md).
