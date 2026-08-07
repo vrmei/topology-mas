@@ -171,3 +171,20 @@ python scripts/analyze_scale_pilot_descriptive.py `
 
 See [the descriptive analysis protocol](docs/descriptive_analysis_protocol.md) for estimands,
 resampling units, and claim boundaries.
+
+## Test classical structural explainability
+
+The first mechanism-oriented analysis asks how well static directed-graph features predict the
+effect of targeting a non-readout node. It uses nested leave-one-graph-out validation so that no
+node from a held-out graph is used for feature scaling or ridge-penalty selection.
+
+```powershell
+python scripts/analyze_classical_structure.py `
+  --run-root runs/scale-pilot100-g5-r8-temp03-v1 `
+  --output-dir runs/scale-pilot100-g5-r8-temp03-v1/posthoc-classical-structure-v1 `
+  --bootstrap-replicates 2000 `
+  --seed 20260807
+```
+
+See [the classical structural explainability protocol](docs/classical_structure_analysis_protocol.md)
+for features, baselines, validation, and claim boundaries.
