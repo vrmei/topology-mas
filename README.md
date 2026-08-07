@@ -154,3 +154,20 @@ pinned model fingerprint must all match.
 
 See [the paired batch protocol](docs/batch_execution.md) for matrix size, preflight checks, cache
 identity, and cost semantics.
+
+## Audit a completed scale pilot
+
+The first post-hoc stage validates every task–graph and task–graph–attack-node cell, then reports
+descriptive estimates with a crossed graph-by-task bootstrap. It does not fit a graph mechanism or
+test a classical dynamics baseline.
+
+```powershell
+python scripts/analyze_scale_pilot_descriptive.py `
+  --run-root runs/scale-pilot100-g5-r8-temp03-v1 `
+  --output-dir runs/scale-pilot100-g5-r8-temp03-v1/posthoc-descriptive-v1 `
+  --bootstrap-replicates 2000 `
+  --seed 20260807
+```
+
+See [the descriptive analysis protocol](docs/descriptive_analysis_protocol.md) for estimands,
+resampling units, and claim boundaries.
