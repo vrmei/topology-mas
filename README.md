@@ -223,3 +223,19 @@ python scripts/analyze_damped_degroot.py `
 See [the damped DeGroot protocol](docs/damped_degroot_protocol.md) for the update equation,
 held-out-graph selection rule, endpoint checks, and claim boundaries. The first completed pilot is
 summarized in [the damped DeGroot pilot result](docs/pilot_damped_degroot_results.md).
+
+## Calibrate continuous classical exposure
+
+Predict task-level LLM target-error adoption from Round-zero categorical states and/or continuous
+equal-weight DeGroot target mass. The analysis uses strict crossed graph-and-task holdout.
+
+```powershell
+python scripts/analyze_conditional_classical_exposure.py `
+  --run-root runs/scale-pilot100-g5-r8-temp03-v1 `
+  --output-dir runs/scale-pilot100-g5-r8-temp03-v1/posthoc-conditional-exposure-v1 `
+  --bootstrap-replicates 2000 `
+  --seed 20260807
+```
+
+See [the conditional exposure protocol](docs/conditional_classical_exposure_protocol.md) and
+[the first pilot result](docs/pilot_conditional_exposure_results.md).
