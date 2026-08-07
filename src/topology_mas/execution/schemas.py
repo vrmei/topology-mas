@@ -58,6 +58,9 @@ class ExecutionSettings(BaseModel):
     neighbor_message_order: Literal["content_hash"] = "content_hash"
     message_order_seed: int = 0
     active_node_pruning: Literal[True] = True
+    state_transition_policy: Literal[
+        "independent-resampling", "state-consistent-replay-v1"
+    ] = "independent-resampling"
 
 
 class RunTrace(BaseModel):
@@ -87,6 +90,8 @@ class RunTrace(BaseModel):
     final_parsed_answer: str | None = None
     final_answer_state: AnswerState
     total_model_calls: int = Field(ge=0)
+    total_backend_calls: int | None = Field(default=None, ge=0)
+    state_replay_cache_hits: int = Field(default=0, ge=0)
     total_input_tokens: int | None = Field(default=None, ge=0)
     total_output_tokens: int | None = Field(default=None, ge=0)
 

@@ -99,6 +99,8 @@ class SynchronousExecutionEngine:
         messages_for_round: dict[int, dict[int, list[MessageRecord]]] = {}
         previous_outputs: dict[int, str] = {}
         model_calls = 0
+        backend_calls = 0
+        state_replay_cache_hits = 0
         known_input_tokens = 0
         known_output_tokens = 0
         input_tokens_complete = True
@@ -183,6 +185,12 @@ class SynchronousExecutionEngine:
                     )
                     completion = self._generator.generate(request)
                     model_calls += 1
+                    backend_called = completion.metadata.get("backend_called", True)
+                    cache_hit = completion.metadata.get("state_replay_cache_hit", False)
+                    if not isinstance(backend_called, bool) or not isinstance(cache_hit, bool):
+                        raise ValueError("generator cache metadata must contain booleans")
+                    backend_calls += int(backend_called)
+                    state_replay_cache_hits += int(cache_hit)
 
                 parsed = parse_numeric_answer(completion.raw_text)
                 state = classify_numeric_answer(
@@ -292,6 +300,8 @@ class SynchronousExecutionEngine:
             final_parsed_answer=final_turn.parsed_answer,
             final_answer_state=final_turn.answer_state,
             total_model_calls=model_calls,
+            total_backend_calls=backend_calls,
+            state_replay_cache_hits=state_replay_cache_hits,
             total_input_tokens=(known_input_tokens if input_tokens_complete else None),
             total_output_tokens=(known_output_tokens if output_tokens_complete else None),
         )

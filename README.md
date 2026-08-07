@@ -136,5 +136,16 @@ topology-mas-run-batch `
   --expected-returned-model deepseek-v4-flash
 ```
 
+For paired counterfactual runs, exact post-Round-zero states can optionally share one realized
+stochastic transition. This is an experimental common-random-numbers policy, not approximate prompt
+caching: the complete messages, generation seed, decoding settings, prompt version, namespace, and
+pinned model fingerprint must all match.
+
+```powershell
+--state-replay-cache-dir runs/state-replay/pilot-v1 `
+--state-replay-model-fingerprint <64-character-sha256> `
+--state-replay-namespace llama31-8b-pilot-v1
+```
+
 See [the paired batch protocol](docs/batch_execution.md) for matrix size, preflight checks, cache
 identity, and cost semantics.

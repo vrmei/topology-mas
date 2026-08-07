@@ -55,6 +55,12 @@ from topology_mas.execution.server_probe import (
     run_server_probe,
     write_server_probe_report,
 )
+from topology_mas.execution.state_replay import (
+    STATE_REPLAY_CACHE_VERSION,
+    StateConsistentReplayGenerator,
+    StateReplayCacheError,
+    StateReplayStats,
+)
 
 __all__ = [
     "ChatMessage",
@@ -87,6 +93,10 @@ __all__ = [
     "RunTrace",
     "SynchronousExecutionEngine",
     "StoredExecutionRun",
+    "STATE_REPLAY_CACHE_VERSION",
+    "StateConsistentReplayGenerator",
+    "StateReplayCacheError",
+    "StateReplayStats",
     "TextGenerationRequest",
     "TextGenerationResult",
     "TextGenerator",

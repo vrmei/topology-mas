@@ -32,7 +32,7 @@ from topology_mas.models import (
 )
 from topology_mas.topology.sampling import graph_collection_fingerprint
 
-BATCH_EXECUTION_VERSION = "paired-batch-v2"
+BATCH_EXECUTION_VERSION = "paired-batch-v3"
 
 
 class BatchExecutionConfig(BaseModel):
@@ -46,6 +46,10 @@ class BatchExecutionConfig(BaseModel):
     requested_model: str = Field(min_length=1)
     expected_returned_model: str | None = None
     provider_base_url: str | None = None
+    state_replay_model_fingerprint: str | None = Field(
+        default=None, pattern=r"^[0-9a-f]{64}$"
+    )
+    state_replay_namespace: str | None = Field(default=None, min_length=1)
 
     @model_validator(mode="after")
     def validate_seeds(self) -> BatchExecutionConfig:
@@ -53,6 +57,12 @@ class BatchExecutionConfig(BaseModel):
             raise ValueError("experiment_seeds must be unique")
         if len(set(self.assignment_seeds)) != len(self.assignment_seeds):
             raise ValueError("assignment_seeds must be unique")
+        if (self.state_replay_model_fingerprint is None) != (
+            self.state_replay_namespace is None
+        ):
+            raise ValueError(
+                "state replay model fingerprint and namespace must be provided together"
+            )
         return self
 
 
@@ -117,6 +127,8 @@ class BatchExecutionOutcome(BaseModel):
     final_answer_state: AnswerState
     final_parsed_answer: str | None = None
     model_calls: int = Field(ge=0)
+    backend_calls: int = Field(ge=0)
+    state_replay_cache_hits: int = Field(ge=0)
     input_tokens: int | None = Field(default=None, ge=0)
     output_tokens: int | None = Field(default=None, ge=0)
 
@@ -131,7 +143,9 @@ class BatchExecutionSummary(BaseModel):
     clean_runs: int = Field(ge=0)
     attack_runs: int = Field(ge=0)
     trace_model_calls: int = Field(ge=0)
+    trace_backend_calls: int = Field(ge=0)
     new_model_calls: int = Field(ge=0)
+    state_replay_cache_hits: int = Field(ge=0)
     known_input_tokens: int = Field(ge=0)
     known_output_tokens: int = Field(ge=0)
     input_tokens_complete: bool
@@ -503,6 +517,12 @@ class BatchExecutionRunner:
             final_answer_state=trace.final_answer_state,
             final_parsed_answer=trace.final_parsed_answer,
             model_calls=trace.total_model_calls,
+            backend_calls=(
+                trace.total_backend_calls
+                if trace.total_backend_calls is not None
+                else trace.total_model_calls
+            ),
+            state_replay_cache_hits=trace.state_replay_cache_hits,
             input_tokens=trace.total_input_tokens,
             output_tokens=trace.total_output_tokens,
         )
@@ -729,10 +749,14 @@ class BatchExecutionRunner:
             clean_runs=sum(spec.condition is RunCondition.CLEAN for spec in plan),
             attack_runs=sum(spec.condition is RunCondition.ATTACK for spec in plan),
             trace_model_calls=sum(outcome.model_calls for outcome in outcomes),
+            trace_backend_calls=sum(outcome.backend_calls for outcome in outcomes),
             new_model_calls=sum(
-                outcome.model_calls
+                outcome.backend_calls
                 for outcome in outcomes
                 if outcome.disposition is BatchDisposition.GENERATED
+            ),
+            state_replay_cache_hits=sum(
+                outcome.state_replay_cache_hits for outcome in outcomes
             ),
             known_input_tokens=sum(outcome.input_tokens or 0 for outcome in outcomes),
             known_output_tokens=sum(outcome.output_tokens or 0 for outcome in outcomes),

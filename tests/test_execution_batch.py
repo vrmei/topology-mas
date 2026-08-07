@@ -11,6 +11,8 @@ from topology_mas.execution import (
     BatchExecutionConfig,
     BatchExecutionConflictError,
     BatchExecutionRunner,
+    ExecutionSettings,
+    StateConsistentReplayGenerator,
     SynchronousExecutionEngine,
     TextGenerationRequest,
     TextGenerationResult,
@@ -192,6 +194,52 @@ def test_batch_builds_complete_paired_matrix_and_resumes(tmp_path: Path) -> None
     assert resumed_summary.new_model_calls == 0
     assert resumed_summary.trace_model_calls == 72
     assert all(outcome.disposition is BatchDisposition.CACHED for outcome in resumed_outcomes)
+
+
+def test_batch_reports_logical_calls_separately_from_state_replay_calls(
+    tmp_path: Path,
+) -> None:
+    backend = CountingGenerator(lambda _: "Updated solution.\nFINAL_ANSWER: 42")
+    replay = StateConsistentReplayGenerator(
+        backend,
+        cache_dir=tmp_path / "state-replay",
+        requested_model="fake-model",
+        expected_returned_model="fake-model",
+        model_fingerprint="a" * 64,
+        namespace="batch-test-v1",
+    )
+    batch = BatchExecutionRunner(
+        SynchronousExecutionEngine(
+            replay,
+            settings=ExecutionSettings(
+                state_transition_policy="state-consistent-replay-v1"
+            ),
+        ),
+        config=BatchExecutionConfig(
+            experiment_seeds=(0, 1),
+            assignment_seeds=(10, 11),
+            requested_model="fake-model",
+            expected_returned_model="fake-model",
+            state_replay_model_fingerprint="a" * 64,
+            state_replay_namespace="batch-test-v1",
+        ),
+        output_dir=tmp_path / "batch",
+        max_workers=4,
+    )
+
+    _, summary = batch.run(
+        tasks=(task(),),
+        graphs=graphs(),
+        round_zero_records=round_zero_records(),
+        adversarial_answers={"task-1": adversarial_answer()},
+    )
+
+    assert summary.trace_model_calls == 72
+    assert 0 < summary.trace_backend_calls < summary.trace_model_calls
+    assert summary.new_model_calls == summary.trace_backend_calls == len(backend.requests)
+    assert summary.state_replay_cache_hits == (
+        summary.trace_model_calls - summary.trace_backend_calls
+    )
 
 
 def test_batch_regenerates_only_a_missing_atomic_trace(tmp_path: Path) -> None:

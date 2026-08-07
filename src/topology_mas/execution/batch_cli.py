@@ -16,6 +16,7 @@ from topology_mas.execution.inputs import (
 )
 from topology_mas.execution.openai_compatible import OpenAICompatibleTextGenerator
 from topology_mas.execution.schemas import ExecutionSettings
+from topology_mas.execution.state_replay import StateConsistentReplayGenerator
 from topology_mas.topology.io import read_graphs_jsonl
 
 
@@ -59,6 +60,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--timeout-seconds", type=float, default=120.0)
     parser.add_argument("--max-attempts", type=int, default=3)
     parser.add_argument("--max-workers", type=int, default=1)
+    parser.add_argument(
+        "--state-replay-cache-dir",
+        type=Path,
+        help="enable exact state-consistent replay using this persistent cache",
+    )
+    parser.add_argument(
+        "--state-replay-model-fingerprint",
+        help="required 64-character content fingerprint when state replay is enabled",
+    )
+    parser.add_argument("--state-replay-namespace")
     return parser
 
 
@@ -72,6 +83,18 @@ def main() -> None:
     expected_returned_model = (
         args.expected_returned_model or round_zero_manifest.config.expected_returned_model
     )
+    replay_enabled = args.state_replay_cache_dir is not None
+    if replay_enabled and (
+        args.state_replay_model_fingerprint is None or args.state_replay_namespace is None
+    ):
+        raise ValueError(
+            "state replay requires --state-replay-model-fingerprint and "
+            "--state-replay-namespace"
+        )
+    if not replay_enabled and (
+        args.state_replay_model_fingerprint is not None or args.state_replay_namespace is not None
+    ):
+        raise ValueError("state replay identity options require --state-replay-cache-dir")
     if args.mutations_dir is not None and args.adversarial_answers is not None:
         raise ValueError("use only one of --mutations-dir and --adversarial-answers")
     if not args.clean_only and args.mutations_dir is None and args.adversarial_answers is None:
@@ -89,6 +112,9 @@ def main() -> None:
         temperature=args.temperature,
         max_output_tokens=args.max_output_tokens,
         message_order_seed=args.message_order_seed,
+        state_transition_policy=(
+            "state-consistent-replay-v1" if replay_enabled else "independent-resampling"
+        ),
     )
     config = BatchExecutionConfig(
         experiment_seeds=experiment_seeds,
@@ -97,6 +123,8 @@ def main() -> None:
         requested_model=model,
         expected_returned_model=expected_returned_model,
         provider_base_url=args.base_url,
+        state_replay_model_fingerprint=args.state_replay_model_fingerprint,
+        state_replay_namespace=args.state_replay_namespace,
     )
     with OpenAICompatibleTextGenerator(
         model=model,
@@ -105,7 +133,19 @@ def main() -> None:
         api_key_env=None if args.no_auth else args.api_key_env,
         timeout_seconds=args.timeout_seconds,
         max_attempts=args.max_attempts,
-    ) as generator:
+    ) as backend:
+        generator = (
+            StateConsistentReplayGenerator(
+                backend,
+                cache_dir=args.state_replay_cache_dir,
+                requested_model=model,
+                expected_returned_model=expected_returned_model,
+                model_fingerprint=args.state_replay_model_fingerprint,
+                namespace=args.state_replay_namespace,
+            )
+            if replay_enabled
+            else backend
+        )
         runner = BatchExecutionRunner(
             SynchronousExecutionEngine(generator, settings=settings),
             config=config,

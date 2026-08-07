@@ -63,9 +63,49 @@ resume, a matching trace is reused; a missing trace is executed; a malformed, ta
 identity-mismatched trace stops the batch. Summary and outcome files are regenerated atomically after
 the complete plan finishes.
 
-`trace_model_calls` counts inference calls represented by all completed traces. `new_model_calls`
-counts calls represented by traces generated during the current invocation. A fully cached resume
+`trace_model_calls` counts logical node transitions represented by all completed traces. When exact
+state replay is disabled, every logical transition is one backend inference. When it is enabled,
+`trace_backend_calls` counts physical model inferences and `state_replay_cache_hits` counts logical
+transitions served by replay. `new_model_calls` retains its historical field name but counts physical
+backend calls made for traces generated during the current invocation. A fully cached trace resume
 therefore reports the original trace cost but zero new calls.
+
+## Exact state-consistent replay
+
+The optional `state-consistent-replay-v1` policy implements common random numbers for paired
+counterfactual execution. It defines the model transition at an exact local state and exact
+stochastic stream once, then replays that realized output when another clean/attack/topology run
+reaches the same state with the same seed. This deliberately changes the protocol from independent
+resampling; it is not justified by assuming that a second model call would return similar text.
+
+The cache identity includes:
+
+- the complete ordered chat messages;
+- generation seed, temperature, and maximum output tokens;
+- requested and expected-returned model identity;
+- an operator-supplied 64-character model-content fingerprint;
+- prompt version and an experiment namespace.
+
+Run IDs are deliberately excluded, because paired run labels are not part of the model state.
+Different experiment seeds, messages, decoding settings, prompts, model fingerprints, or namespaces
+cannot share an entry. There is no embedding, semantic-similarity, parsed-answer, or prefix match.
+
+Entries are immutable and SHA-256 checked. Within one process, concurrent identical requests use
+single-flight execution. Across processes, duplicate computation may occur during a race, but atomic
+first-writer publication selects one complete result and all readers subsequently replay it. A
+manifest mismatch or modified entry fails closed.
+
+Enable it only for a new batch protocol and a new output directory:
+
+```powershell
+--state-replay-cache-dir runs/state-replay/pilot-v1 `
+--state-replay-model-fingerprint <64-character-sha256> `
+--state-replay-namespace llama31-8b-pilot-v1
+```
+
+The fingerprint must identify the immutable local model artifact, not merely a mutable model alias.
+The runner records the replay policy and identity in the batch manifest. Batch protocol v3 prevents
+older independently resampled traces from being silently mixed with replay traces.
 
 ## CLI
 

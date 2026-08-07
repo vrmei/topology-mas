@@ -224,6 +224,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-output-tokens", type=int, default=768)
     parser.add_argument("--max-workers", type=int, default=16)
     parser.add_argument("--poll-seconds", type=int, default=60)
+    parser.add_argument("--state-replay-model-fingerprint")
+    parser.add_argument("--state-replay-namespace")
     return parser
 
 
@@ -238,6 +240,11 @@ def main() -> None:
     tasks = read_tasks_jsonl(tasks_path)
     if args.graphs_per_stratum < 1 or args.round_zero_replicas < 2:
         raise ValueError("invalid graph or replica count")
+    replay_enabled = args.state_replay_model_fingerprint is not None
+    if replay_enabled != (args.state_replay_namespace is not None):
+        raise ValueError(
+            "state replay model fingerprint and namespace must be provided together"
+        )
 
     graph_files = sorted(graph_root.glob("*/graphs.jsonl"), key=lambda path: parse_stratum(path))
     if not graph_files:
@@ -301,6 +308,11 @@ def main() -> None:
         "max_output_tokens": args.max_output_tokens,
         "max_workers": args.max_workers,
         "poll_seconds": args.poll_seconds,
+        "state_transition_policy": (
+            "state-consistent-replay-v1" if replay_enabled else "independent-resampling"
+        ),
+        "state_replay_model_fingerprint": args.state_replay_model_fingerprint,
+        "state_replay_namespace": args.state_replay_namespace,
         "strata": strata,
         "expected_total_traces": total_expected_traces,
         "expected_total_local_inference_calls": total_expected_calls,
@@ -362,44 +374,56 @@ def main() -> None:
             encoding="utf-8",
         )
         batch_root = stratum_root / "batch"
+        batch_command = [
+            sys.executable,
+            "-m",
+            "topology_mas.execution.batch_cli",
+            "--tasks",
+            str(tasks_path),
+            "--graphs",
+            str(selected_path),
+            "--round-zero-dir",
+            str(round_zero_dir),
+            "--adversarial-answers",
+            str(adversarial_path),
+            "--output-dir",
+            str(batch_root),
+            "--experiment-seeds",
+            "0",
+            "--assignment-seeds",
+            "0",
+            "--model",
+            args.model,
+            "--expected-returned-model",
+            args.expected_returned_model,
+            "--base-url",
+            args.base_url,
+            "--no-auth",
+            "--temperature",
+            str(args.temperature),
+            "--max-output-tokens",
+            str(args.max_output_tokens),
+            "--timeout-seconds",
+            "180",
+            "--max-attempts",
+            "3",
+            "--max-workers",
+            str(args.max_workers),
+        ]
+        if replay_enabled:
+            batch_command.extend(
+                [
+                    "--state-replay-cache-dir",
+                    str(run_root / "state-replay-v1"),
+                    "--state-replay-model-fingerprint",
+                    args.state_replay_model_fingerprint,
+                    "--state-replay-namespace",
+                    args.state_replay_namespace,
+                ]
+            )
         run_stage(
             stage_name=f"batch_{key}",
-            command=[
-                sys.executable,
-                "-m",
-                "topology_mas.execution.batch_cli",
-                "--tasks",
-                str(tasks_path),
-                "--graphs",
-                str(selected_path),
-                "--round-zero-dir",
-                str(round_zero_dir),
-                "--adversarial-answers",
-                str(adversarial_path),
-                "--output-dir",
-                str(batch_root),
-                "--experiment-seeds",
-                "0",
-                "--assignment-seeds",
-                "0",
-                "--model",
-                args.model,
-                "--expected-returned-model",
-                args.expected_returned_model,
-                "--base-url",
-                args.base_url,
-                "--no-auth",
-                "--temperature",
-                str(args.temperature),
-                "--max-output-tokens",
-                str(args.max_output_tokens),
-                "--timeout-seconds",
-                "180",
-                "--max-attempts",
-                "3",
-                "--max-workers",
-                str(args.max_workers),
-            ],
+            command=batch_command,
             project_root=project_root,
             run_root=run_root,
             progress_kind="batch",
