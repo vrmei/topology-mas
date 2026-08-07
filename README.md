@@ -239,3 +239,40 @@ python scripts/analyze_conditional_classical_exposure.py `
 
 See [the conditional exposure protocol](docs/conditional_classical_exposure_protocol.md) and
 [the first pilot result](docs/pilot_conditional_exposure_results.md).
+
+## Run the matched rationale-ablation pilot
+
+Freeze a result-independent 20-task sample and one graph from each existing `(n,m)` stratum:
+
+```powershell
+python scripts/prepare_rationale_ablation_pilot.py `
+  --source-run-root runs/scale-pilot100-g5-r8-temp03-v1 `
+  --output-dir runs/rationale-ablation-pilot20-v1/prepared `
+  --task-count 20
+```
+
+With the pinned local Llama vLLM endpoint running, execute only the new answer-only attacks. Clean
+traces are copied from and validated against the completed pilot.
+
+```powershell
+python scripts/run_rationale_ablation_pilot.py `
+  --project-root . `
+  --prepared-dir runs/rationale-ablation-pilot20-v1/prepared `
+  --output-dir runs/rationale-ablation-pilot20-v1/answer-only `
+  --base-url http://127.0.0.1:8000/v1 `
+  --max-workers 16
+```
+
+After all eight strata complete, compare the new runs with the pinned full-rationale traces:
+
+```powershell
+python scripts/analyze_rationale_ablation_pilot.py `
+  --prepared-dir runs/rationale-ablation-pilot20-v1/prepared `
+  --answer-only-run-root runs/rationale-ablation-pilot20-v1/answer-only `
+  --output-dir runs/rationale-ablation-pilot20-v1/paired-analysis-v1 `
+  --bootstrap-replicates 2000 `
+  --seed 20260807
+```
+
+See [the frozen rationale-ablation protocol](docs/rationale_ablation_pilot_protocol.md) for the
+estimand, sampling rule, integrity gates, and claim boundary.
