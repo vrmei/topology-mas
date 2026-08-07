@@ -8,6 +8,11 @@ an auditable offline GSM8K target-error mutation pipeline, constrained graph sam
 provider-neutral synchronous MAS execution kernel, an OpenAI-compatible adapter, and a resumable
 paired batch runner. Classical baselines and analysis will be added as separate modules.
 
+The active research framing and its evidence gates are recorded in
+[the research direction decision](docs/research_direction.md). Utility--robustness mapping remains a
+foundation; the primary direction is to separate static graph effects from task-conditioned semantic
+influence without assuming an LLM-specific mechanism in advance.
+
 ## Development setup
 
 ```powershell
