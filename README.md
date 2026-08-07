@@ -188,3 +188,20 @@ python scripts/analyze_classical_structure.py `
 
 See [the classical structural explainability protocol](docs/classical_structure_analysis_protocol.md)
 for features, baselines, validation, and claim boundaries.
+
+## Compare with classical graph dynamics
+
+Run parameter-free finite-state dynamics from the exact frozen Round-zero node answers. The
+analysis pairs frozen-state, inertial-majority, and equal-weight DeGroot outcomes with the recorded
+LLM clean and targeted-attack outcomes.
+
+```powershell
+python scripts/analyze_classical_dynamics.py `
+  --run-root runs/scale-pilot100-g5-r8-temp03-v1 `
+  --output-dir runs/scale-pilot100-g5-r8-temp03-v1/posthoc-classical-dynamics-v1 `
+  --bootstrap-replicates 2000 `
+  --seed 20260807
+```
+
+See [the classical dynamics protocol](docs/classical_dynamics_protocol.md) for state projection,
+update rules, tie handling, metrics, and claim boundaries.
