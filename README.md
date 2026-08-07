@@ -276,3 +276,49 @@ python scripts/analyze_rationale_ablation_pilot.py `
 
 See [the frozen rationale-ablation protocol](docs/rationale_ablation_pilot_protocol.md) for the
 estimand, sampling rule, integrity gates, and claim boundary.
+
+## Exhaust CPU-only classical analyses first
+
+Test whether nonlinear mappings, complete DeGroot trajectories, Round-zero states, and static graph
+features improve over the existing linear final-exposure baseline:
+
+```powershell
+python scripts/analyze_classical_envelope.py `
+  --run-root runs/scale-pilot100-g5-r8-temp03-v1 `
+  --output-dir runs/scale-pilot100-g5-r8-temp03-v1/posthoc-classical-envelope-v1 `
+  --bootstrap-replicates 2000 `
+  --seed 20260807
+```
+
+Measure whether graph and vulnerable-node rankings are stable under repeated disjoint task halves:
+
+```powershell
+python scripts/analyze_topology_ranking_stability.py `
+  --run-root runs/scale-pilot100-g5-r8-temp03-v1 `
+  --output-dir runs/scale-pilot100-g5-r8-temp03-v1/posthoc-topology-ranking-stability-v1 `
+  --split-replicates 1000 `
+  --bootstrap-replicates 2000 `
+  --seed 20260807
+```
+
+Decompose every active benign update into target delivery and newly induced target adoption, then
+compare DeGroot exposure with richer content-free finite-state predictors under the same strict
+crossed graph-and-task holdout:
+
+```powershell
+python scripts/analyze_node_round_adoption.py `
+  --run-root runs/scale-pilot100-g5-r8-temp03-v1 `
+  --output-dir runs/scale-pilot100-g5-r8-temp03-v1/posthoc-node-round-adoption-v1 `
+  --bootstrap-replicates 2000 `
+  --seed 20260807
+```
+
+The corresponding frozen protocols are
+[nonlinear classical envelope](docs/classical_envelope_protocol.md),
+[node-round exposure--adoption](docs/node_round_adoption_protocol.md), and
+[topology-ranking stability](docs/topology_ranking_stability_protocol.md). The GPU rationale
+ablation is scheduled after these trace-only analyses. Completed pilot interpretations are recorded
+in [the nonlinear-envelope result](docs/pilot_classical_envelope_results.md) and
+[the topology-ranking stability result](docs/pilot_topology_ranking_stability_results.md). The
+node-level decomposition is summarized in
+[the node-round adoption result](docs/pilot_node_round_adoption_results.md).

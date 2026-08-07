@@ -53,6 +53,20 @@ importance must be measured rather than assumed.
 
 ## Staged route
 
+### Current execution order
+
+As of 2026-08-07, all analyses that require only completed traces are executed before any new GPU
+condition. The order is:
+
+1. nonlinear and trajectory-level classical baselines;
+2. node-round exposure--adoption analysis;
+3. task-conditioned topology-ranking stability;
+4. matched rationale ablation on the pinned local model;
+5. broader model and dataset generalization.
+
+The rationale-ablation protocol and implementation are retained, but its new inference is deferred.
+This is a scheduling decision, not a change to its frozen sample or estimand.
+
 ### Stage 0: utility--robustness map
 
 Use the existing homogeneous-agent experiment to report:
@@ -92,8 +106,8 @@ from being labeled as infection.
 
 ### Stage 3: minimal semantic interventions
 
-Only after Stages 0--2 identify a stable residual, run matched follow-up conditions on a selected
-set of graph pairs:
+Only after the available CPU analyses in Stages 0--2 are complete, run matched follow-up conditions
+on a selected set of graph pairs:
 
 1. answer-only messages;
 2. full-rationale messages;
