@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -51,9 +52,21 @@ class CausalSchedule(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     distances_to_readout: tuple[int, ...]
+    effective_horizon: int = Field(ge=1)
     active_nodes_by_round: tuple[tuple[int, ...], ...]
     active_edges_by_round: tuple[tuple[DirectedEdge, ...], ...]
     message_opportunities: int = Field(ge=0)
+
+    @model_validator(mode="before")
+    @classmethod
+    def infer_legacy_horizon(cls, value: Any) -> Any:
+        """Keep traces written before explicit horizon recording readable."""
+
+        if isinstance(value, dict) and "effective_horizon" not in value:
+            rounds = value.get("active_nodes_by_round")
+            if isinstance(rounds, (list, tuple)) and len(rounds) >= 2:
+                return {**value, "effective_horizon": len(rounds) - 1}
+        return value
 
 
 class GraphSamplingSummary(BaseModel):

@@ -9,6 +9,7 @@ from topology_mas.topology.graph_ops import (
     candidate_edge_pairs,
     distances_to_readout,
     graph_constraint_violations,
+    graph_depth_to_readout,
     has_directed_cycle,
     source_nodes,
 )
@@ -74,8 +75,27 @@ def test_causal_schedule_stops_nodes_and_edges_outside_final_cone() -> None:
         (2, 3),
         (3,),
     )
+    assert schedule.effective_horizon == 3
     assert tuple(len(edges) for edges in schedule.active_edges_by_round) == (3, 2, 1)
     assert schedule.message_opportunities == 6
+
+
+def test_graph_depth_schedule_uses_the_shortest_complete_horizon() -> None:
+    shallow = graph(((0, 3), (1, 3), (2, 3)), max_rounds=3)
+
+    assert graph_depth_to_readout(shallow) == 1
+    schedule = build_causal_schedule(shallow, effective_horizon=1)
+
+    assert schedule.effective_horizon == 1
+    assert schedule.active_nodes_by_round == ((0, 1, 2, 3), (3,))
+    assert tuple(len(edges) for edges in schedule.active_edges_by_round) == (3,)
+
+
+def test_schedule_rejects_a_horizon_that_cannot_deliver_every_round_zero_state() -> None:
+    chain = graph(((0, 1), (1, 2), (2, 3)), max_rounds=3)
+
+    with pytest.raises(ValueError, match="smaller than graph depth"):
+        build_causal_schedule(chain, effective_horizon=2)
 
 
 def test_sampling_config_rejects_impossible_edge_counts() -> None:

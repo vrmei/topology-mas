@@ -28,7 +28,7 @@ from topology_mas.models import (
     RunCondition,
     TaskInstance,
 )
-from topology_mas.topology.graph_ops import build_causal_schedule
+from topology_mas.topology.graph_ops import build_causal_schedule, graph_depth_to_readout
 
 
 class SynchronousExecutionEngine:
@@ -62,7 +62,12 @@ class SynchronousExecutionEngine:
             round_zero_records=round_zero_records,
             initial_assignment=initial_assignment,
         )
-        schedule = build_causal_schedule(graph)
+        effective_horizon = (
+            graph.max_rounds
+            if self.settings.horizon_policy == "fixed"
+            else graph_depth_to_readout(graph)
+        )
+        schedule = build_causal_schedule(graph, effective_horizon=effective_horizon)
         assigned_initial = self._assigned_initial_records(
             graph=graph,
             task=task,
@@ -242,7 +247,7 @@ class SynchronousExecutionEngine:
                     else:
                         known_output_tokens += completion.output_tokens
 
-            if round_index == graph.max_rounds:
+            if round_index == effective_horizon:
                 continue
             recipients_by_sender: dict[int, list[int]] = {}
             for edge in schedule.active_edges_by_round[round_index]:
@@ -271,7 +276,7 @@ class SynchronousExecutionEngine:
         final_turn = next(
             turn
             for turn in reversed(turns)
-            if turn.node_id == graph.readout_node and turn.round_index == graph.max_rounds
+            if turn.node_id == graph.readout_node and turn.round_index == effective_horizon
         )
         return RunTrace(
             run_id=run_id,

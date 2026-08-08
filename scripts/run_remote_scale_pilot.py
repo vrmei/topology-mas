@@ -23,7 +23,7 @@ from typing import Any
 
 from topology_mas.data.gsm8k import read_tasks_jsonl
 from topology_mas.models import GraphSpec
-from topology_mas.topology.graph_ops import build_causal_schedule
+from topology_mas.topology.graph_ops import build_causal_schedule, graph_depth_to_readout
 from topology_mas.topology.io import read_graphs_jsonl
 
 
@@ -196,8 +196,11 @@ def parse_stratum(path: Path) -> tuple[int, int]:
     return int(parts[0].removeprefix("n")), int(parts[1].removeprefix("m"))
 
 
-def inference_calls_per_task(graph: GraphSpec) -> int:
-    schedule = build_causal_schedule(graph)
+def inference_calls_per_task(graph: GraphSpec, *, horizon_policy: str = "fixed") -> int:
+    effective_horizon = None
+    if horizon_policy == "graph_depth":
+        effective_horizon = graph_depth_to_readout(graph)
+    schedule = build_causal_schedule(graph, effective_horizon=effective_horizon)
     runtime_rounds = schedule.active_nodes_by_round[1:]
     clean_calls = sum(len(nodes) for nodes in runtime_rounds)
     attack_calls = sum(
@@ -224,6 +227,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-output-tokens", type=int, default=768)
     parser.add_argument("--max-workers", type=int, default=16)
     parser.add_argument("--poll-seconds", type=int, default=60)
+    parser.add_argument(
+        "--horizon-policy", choices=("fixed", "graph_depth"), default="fixed"
+    )
     parser.add_argument("--state-replay-model-fingerprint")
     parser.add_argument("--state-replay-namespace")
     return parser
@@ -261,7 +267,9 @@ def main() -> None:
             raise ValueError(f"empty graph stratum: {graph_file}")
         max_node_count = max(max_node_count, n)
         expected_traces = len(tasks) * len(selected) * n
-        expected_calls = len(tasks) * sum(inference_calls_per_task(g) for g in selected)
+        expected_calls = len(tasks) * sum(
+            inference_calls_per_task(g, horizon_policy=args.horizon_policy) for g in selected
+        )
         total_expected_traces += expected_traces
         total_expected_calls += expected_calls
         strata.append(
@@ -308,6 +316,7 @@ def main() -> None:
         "max_output_tokens": args.max_output_tokens,
         "max_workers": args.max_workers,
         "poll_seconds": args.poll_seconds,
+        "horizon_policy": args.horizon_policy,
         "state_transition_policy": (
             "state-consistent-replay-v1" if replay_enabled else "independent-resampling"
         ),
@@ -409,6 +418,8 @@ def main() -> None:
             "3",
             "--max-workers",
             str(args.max_workers),
+            "--horizon-policy",
+            args.horizon_policy,
         ]
         if replay_enabled:
             batch_command.extend(

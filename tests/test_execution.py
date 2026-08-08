@@ -5,6 +5,7 @@ from collections.abc import Callable
 import pytest
 
 from topology_mas.execution import (
+    ExecutionSettings,
     InitialStateAssignment,
     SynchronousExecutionEngine,
     TextGenerationRequest,
@@ -221,6 +222,59 @@ def test_target_error_replay_replaces_attacker_calls_and_propagates() -> None:
     assert trace.final_parsed_answer == "41"
     assert trace.target_answer == "41"
     assert trace.adversarial_answer_fingerprint is not None
+
+
+def test_graph_depth_horizon_ends_a_shallow_graph_early_without_changing_fixed_default() -> None:
+    shallow = GraphSpec(
+        graph_id="shallow",
+        node_count=3,
+        edges=(DirectedEdge(source=0, target=2), DirectedEdge(source=1, target=2)),
+        readout_node=2,
+        max_rounds=2,
+    )
+    fixed = SynchronousExecutionEngine(
+        CapturingGenerator(lambda _: "FINAL_ANSWER: 42")
+    ).run(graph=shallow, task=task(), condition=RunCondition.CLEAN, seed=0)
+    depth = SynchronousExecutionEngine(
+        CapturingGenerator(lambda _: "FINAL_ANSWER: 42"),
+        settings=ExecutionSettings(horizon_policy="graph_depth"),
+    ).run(graph=shallow, task=task(), condition=RunCondition.CLEAN, seed=0)
+
+    assert fixed.schedule.effective_horizon == 2
+    assert depth.schedule.effective_horizon == 1
+    assert fixed.total_model_calls == 7
+    assert depth.total_model_calls == 4
+    assert max(turn.round_index for turn in depth.turns) == 1
+    assert fixed.run_id != depth.run_id
+
+
+def test_graph_depth_horizon_keeps_persistent_attack_replay_within_the_causal_cone() -> None:
+    generator = CapturingGenerator(lambda _: "FINAL_ANSWER: 42")
+    trace = SynchronousExecutionEngine(
+        generator,
+        settings=ExecutionSettings(horizon_policy="graph_depth"),
+    ).run(
+        graph=GraphSpec(
+            graph_id="depth-three",
+            node_count=4,
+            edges=(
+                DirectedEdge(source=0, target=1),
+                DirectedEdge(source=1, target=2),
+                DirectedEdge(source=2, target=3),
+            ),
+            readout_node=3,
+            max_rounds=3,
+        ),
+        task=task(),
+        condition=RunCondition.ATTACK,
+        attack_node=2,
+        adversarial_answer=target_error(),
+        seed=0,
+    )
+
+    attacker_turns = [turn for turn in trace.turns if turn.node_id == 2]
+    assert [turn.round_index for turn in attacker_turns] == [0, 1, 2]
+    assert all(turn.metadata["attack_replay"] is True for turn in attacker_turns)
 
 
 def test_attack_content_changes_run_identity() -> None:

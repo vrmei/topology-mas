@@ -94,6 +94,16 @@ def graph_constraint_violations(graph: GraphSpec) -> tuple[str, ...]:
     return tuple(reasons)
 
 
+def graph_depth_to_readout(graph: GraphSpec) -> int:
+    """Maximum shortest-path distance to readout for a valid experiment graph."""
+
+    violations = graph_constraint_violations(graph)
+    if violations:
+        raise ValueError(f"cannot measure invalid graph depth: {', '.join(violations)}")
+    distances = distances_to_readout(graph)
+    return max(distance for distance in distances if distance is not None)
+
+
 def source_nodes(graph: GraphSpec) -> tuple[int, ...]:
     indegree = [0] * graph.node_count
     for edge in graph.edges:
@@ -122,7 +132,11 @@ def has_directed_cycle(graph: GraphSpec) -> bool:
     return any(visit(node) for node in range(graph.node_count) if state[node] == 0)
 
 
-def build_causal_schedule(graph: GraphSpec) -> CausalSchedule:
+def build_causal_schedule(
+    graph: GraphSpec,
+    *,
+    effective_horizon: int | None = None,
+) -> CausalSchedule:
     """Prune turns and sends that cannot reach readout by the final round."""
 
     violations = graph_constraint_violations(graph)
@@ -131,25 +145,36 @@ def build_causal_schedule(graph: GraphSpec) -> CausalSchedule:
     raw_distances = distances_to_readout(graph)
     distances = tuple(distance for distance in raw_distances if distance is not None)
     assert len(distances) == graph.node_count
+    graph_depth = max(distances)
+    horizon = graph.max_rounds if effective_horizon is None else effective_horizon
+    if horizon < graph_depth:
+        raise ValueError(
+            f"effective_horizon={horizon} is smaller than graph depth {graph_depth}"
+        )
+    if horizon > graph.max_rounds:
+        raise ValueError(
+            f"effective_horizon={horizon} exceeds configured max_rounds={graph.max_rounds}"
+        )
 
     active_nodes_by_round = tuple(
         tuple(
             node
             for node, distance in enumerate(distances)
-            if round_index + distance <= graph.max_rounds
+            if round_index + distance <= horizon
         )
-        for round_index in range(graph.max_rounds + 1)
+        for round_index in range(horizon + 1)
     )
     active_edges_by_round = tuple(
         tuple(
             edge
             for edge in graph.edges
-            if round_index + 1 + distances[edge.target] <= graph.max_rounds
+            if round_index + 1 + distances[edge.target] <= horizon
         )
-        for round_index in range(graph.max_rounds)
+        for round_index in range(horizon)
     )
     return CausalSchedule(
         distances_to_readout=distances,
+        effective_horizon=horizon,
         active_nodes_by_round=active_nodes_by_round,
         active_edges_by_round=active_edges_by_round,
         message_opportunities=sum(len(edges) for edges in active_edges_by_round),

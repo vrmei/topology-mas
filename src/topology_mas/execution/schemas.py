@@ -58,6 +58,7 @@ class ExecutionSettings(BaseModel):
     neighbor_message_order: Literal["content_hash"] = "content_hash"
     message_order_seed: int = 0
     active_node_pruning: Literal[True] = True
+    horizon_policy: Literal["fixed", "graph_depth"] = "fixed"
     state_transition_policy: Literal[
         "independent-resampling", "state-consistent-replay-v1"
     ] = "independent-resampling"

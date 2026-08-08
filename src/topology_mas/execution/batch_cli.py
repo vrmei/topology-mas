@@ -57,6 +57,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max-output-tokens", type=int, default=768)
     parser.add_argument("--message-order-seed", type=int, default=0)
+    parser.add_argument(
+        "--horizon-policy",
+        choices=("fixed", "graph_depth"),
+        default="fixed",
+        help=(
+            "fixed uses every graph's configured max_rounds; graph_depth ends each graph "
+            "at its maximum shortest-path distance to readout"
+        ),
+    )
     parser.add_argument("--timeout-seconds", type=float, default=120.0)
     parser.add_argument("--max-attempts", type=int, default=3)
     parser.add_argument("--max-workers", type=int, default=1)
@@ -112,6 +121,7 @@ def main() -> None:
         temperature=args.temperature,
         max_output_tokens=args.max_output_tokens,
         message_order_seed=args.message_order_seed,
+        horizon_policy=args.horizon_policy,
         state_transition_policy=(
             "state-consistent-replay-v1" if replay_enabled else "independent-resampling"
         ),

@@ -4,6 +4,7 @@ from topology_mas.topology.graph_ops import (
     build_causal_schedule,
     distances_to_readout,
     graph_constraint_violations,
+    graph_depth_to_readout,
     relabel_graph,
 )
 from topology_mas.topology.sampling import ConstrainedDirectedGraphSampler
@@ -14,6 +15,7 @@ __all__ = [
     "GraphSamplingConfig",
     "build_causal_schedule",
     "distances_to_readout",
+    "graph_depth_to_readout",
     "graph_constraint_violations",
     "relabel_graph",
 ]
