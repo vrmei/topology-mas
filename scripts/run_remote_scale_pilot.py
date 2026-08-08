@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from topology_mas.data.gsm8k import read_tasks_jsonl
+from topology_mas.execution.inputs import load_round_zero_collection
 from topology_mas.models import GraphSpec
 from topology_mas.topology.graph_ops import build_causal_schedule, graph_depth_to_readout
 from topology_mas.topology.io import read_graphs_jsonl
@@ -223,6 +224,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--base-url", required=True)
     parser.add_argument("--graphs-per-stratum", type=int, default=5)
     parser.add_argument("--round-zero-replicas", type=int, default=8)
+    parser.add_argument(
+        "--reuse-round-zero-dir",
+        type=Path,
+        help="reuse a complete compatible Round-zero cache instead of generating it again",
+    )
     parser.add_argument("--temperature", type=float, default=0.3)
     parser.add_argument("--max-output-tokens", type=int, default=768)
     parser.add_argument("--max-workers", type=int, default=16)
@@ -232,6 +238,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--state-replay-model-fingerprint")
     parser.add_argument("--state-replay-namespace")
+    parser.add_argument(
+        "--state-replay-cache-dir",
+        type=Path,
+        help="reuse an existing compatible state replay cache; defaults inside output-root",
+    )
     return parser
 
 
@@ -251,6 +262,8 @@ def main() -> None:
         raise ValueError(
             "state replay model fingerprint and namespace must be provided together"
         )
+    if args.state_replay_cache_dir is not None and not replay_enabled:
+        raise ValueError("--state-replay-cache-dir requires state replay identity options")
 
     graph_files = sorted(graph_root.glob("*/graphs.jsonl"), key=lambda path: parse_stratum(path))
     if not graph_files:
@@ -312,6 +325,9 @@ def main() -> None:
         "base_url": args.base_url,
         "graphs_per_stratum": args.graphs_per_stratum,
         "round_zero_replicas": args.round_zero_replicas,
+        "round_zero_reuse_source": (
+            str(args.reuse_round_zero_dir.resolve()) if args.reuse_round_zero_dir else None
+        ),
         "temperature": args.temperature,
         "max_output_tokens": args.max_output_tokens,
         "max_workers": args.max_workers,
@@ -322,6 +338,11 @@ def main() -> None:
         ),
         "state_replay_model_fingerprint": args.state_replay_model_fingerprint,
         "state_replay_namespace": args.state_replay_namespace,
+        "state_replay_cache_source": (
+            str(args.state_replay_cache_dir.resolve())
+            if args.state_replay_cache_dir
+            else None
+        ),
         "strata": strata,
         "expected_total_traces": total_expected_traces,
         "expected_total_local_inference_calls": total_expected_calls,
@@ -330,10 +351,40 @@ def main() -> None:
     }
     atomic_json(run_root / "orchestrator_status.json", manifest)
 
-    round_zero_dir = run_root / "round-zero-r8-temp0p3" / "cache"
-    run_stage(
-        stage_name="round_zero_r8",
-        command=[
+    round_zero_dir = (
+        args.reuse_round_zero_dir.resolve()
+        if args.reuse_round_zero_dir is not None
+        else run_root / "round-zero-r8-temp0p3" / "cache"
+    )
+    if args.reuse_round_zero_dir is not None:
+        round_zero_manifest, round_zero_records = load_round_zero_collection(round_zero_dir)
+        expected_task_ids = tuple(task.task_id for task in tasks)
+        config = round_zero_manifest.config
+        if round_zero_manifest.task_ids != expected_task_ids:
+            raise ValueError("reused Round-zero cache task order differs from this run")
+        if config.replica_count < max_node_count or 0 not in config.seeds:
+            raise ValueError("reused Round-zero cache lacks required replicas or seed 0")
+        if (
+            config.requested_model != args.model
+            or config.expected_returned_model != args.expected_returned_model
+            or config.temperature != args.temperature
+            or config.max_output_tokens != args.max_output_tokens
+        ):
+            raise ValueError("reused Round-zero cache generation settings differ")
+        manifest["stages"].append(
+            {
+                "stage_name": "round_zero_r8",
+                "status": "reused",
+                "source": str(round_zero_dir),
+                "completed_items": len(round_zero_records),
+                "expected_items": len(tasks) * args.round_zero_replicas,
+            }
+        )
+        atomic_json(run_root / "orchestrator_status.json", manifest)
+    else:
+        run_stage(
+            stage_name="round_zero_r8",
+            command=[
             sys.executable,
             "-m",
             "topology_mas.execution.round_zero_cli",
@@ -362,14 +413,20 @@ def main() -> None:
             "3",
             "--max-workers",
             str(args.max_workers),
-        ],
-        project_root=project_root,
-        run_root=run_root,
-        progress_kind="round_zero",
-        progress_root=round_zero_dir,
-        expected_items=len(tasks) * args.round_zero_replicas,
-        poll_seconds=args.poll_seconds,
-        manifest=manifest,
+            ],
+            project_root=project_root,
+            run_root=run_root,
+            progress_kind="round_zero",
+            progress_root=round_zero_dir,
+            expected_items=len(tasks) * args.round_zero_replicas,
+            poll_seconds=args.poll_seconds,
+            manifest=manifest,
+        )
+
+    state_replay_cache_dir = (
+        args.state_replay_cache_dir.resolve()
+        if args.state_replay_cache_dir is not None
+        else run_root / "state-replay-v1"
     )
 
     for stratum, graph_file in zip(strata, graph_files, strict=True):
@@ -425,7 +482,7 @@ def main() -> None:
             batch_command.extend(
                 [
                     "--state-replay-cache-dir",
-                    str(run_root / "state-replay-v1"),
+                    str(state_replay_cache_dir),
                     "--state-replay-model-fingerprint",
                     args.state_replay_model_fingerprint,
                     "--state-replay-namespace",
