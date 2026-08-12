@@ -160,6 +160,41 @@ def test_adapter_retries_context_overflow_with_safe_output_limit() -> None:
     }
 
 
+def test_adapter_parses_nested_vllm_context_error() -> None:
+    calls = 0
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(
+                400,
+                json={
+                    "error": {
+                        "message": (
+                            "This model's maximum context length is 80 tokens and "
+                            "your request has 40 input tokens."
+                        )
+                    }
+                },
+            )
+        return httpx.Response(200, json=response_payload())
+
+    with OpenAICompatibleTextGenerator(
+        model="model",
+        base_url="https://example.test/v1",
+        api_key="secret",
+        transport=httpx.MockTransport(handler),
+    ) as generator:
+        result = generator.generate(request())
+
+    assert calls == 2
+    assert result.metadata["context_window_adjustment"] == {
+        "requested_max_output_tokens": 64,
+        "effective_max_output_tokens": 40,
+    }
+
+
 def test_adapter_rejects_success_without_text() -> None:
     transport = httpx.MockTransport(
         lambda _: httpx.Response(

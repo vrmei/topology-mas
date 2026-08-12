@@ -178,6 +178,10 @@ class OpenAICompatibleTextGenerator:
         except ValueError:
             body = None
         message: object = body.get("message") if isinstance(body, dict) else None
+        if message is None and isinstance(body, dict):
+            error = body.get("error")
+            if isinstance(error, dict):
+                message = error.get("message")
         if not isinstance(message, str):
             message = response.text
         match = cls._CONTEXT_LIMIT_PATTERN.search(message)
