@@ -66,7 +66,7 @@ def load_complete_batch(root: str | Path) -> LoadedBatch:
         raise BatchExecutionConflictError("batch manifest is invalid") from exc
     if manifest.runner_version != BATCH_EXECUTION_VERSION:
         raise BatchExecutionConflictError(
-            "analysis requires a self-contained paired-batch-v2 artifact"
+            f"analysis requires a self-contained {BATCH_EXECUTION_VERSION} artifact"
         )
 
     plan = _read_jsonl(store.plan_path, ExecutionRunSpec)
@@ -87,7 +87,12 @@ def load_complete_batch(root: str | Path) -> LoadedBatch:
         raise BatchExecutionConflictError("task fingerprint differs from the manifest")
     if graph_collection_fingerprint(graphs) != manifest.graph_collection_fingerprint:
         raise BatchExecutionConflictError("graph fingerprint differs from the manifest")
-    if content_fingerprint(references) != manifest.round_zero_index_fingerprint:
+    if manifest.round_zero_index_fingerprint is None:
+        if references or manifest.config.initial_state_policy != "independent_per_run":
+            raise BatchExecutionConflictError(
+                "missing Round-zero fingerprint is incompatible with the stored index/policy"
+            )
+    elif content_fingerprint(references) != manifest.round_zero_index_fingerprint:
         raise BatchExecutionConflictError("round-zero index fingerprint differs")
     if content_fingerprint(answers) != manifest.adversarial_answers_fingerprint:
         raise BatchExecutionConflictError("adversarial-answer fingerprint differs")
