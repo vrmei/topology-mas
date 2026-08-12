@@ -254,6 +254,12 @@ def test_independent_round_zero_is_generated_per_graph_and_condition(
     assert manifest["config"]["initial_state_policy"] == "independent_per_run"
     assert manifest["round_zero_fingerprint"] is None
     assert (tmp_path / "inputs" / "round_zero_index.jsonl").read_text() == ""
+    analysis = analyze_batch(load_complete_batch(tmp_path))
+    assert len(analysis.graph_metrics) == 2
+    assert all(
+        state.structural_node_to_replica is None
+        for state in analysis.classical_initial_states
+    )
 
 
 def test_batch_reports_logical_calls_separately_from_state_replay_calls(
