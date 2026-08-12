@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import random
+import re
 import time
 from typing import Any
 
@@ -33,6 +34,11 @@ class OpenAICompatibleTextGenerator:
     """Synchronous adapter with bounded retries and no model fallback."""
 
     _RETRYABLE_STATUSES = {408, 409, 429, 500, 502, 503, 504}
+    _CONTEXT_LIMIT_PATTERN = re.compile(
+        r"maximum context length is (?P<context>\d+) tokens.*?"
+        r"request has (?P<input>\d+) input tokens",
+        re.IGNORECASE | re.DOTALL,
+    )
 
     def __init__(
         self,
@@ -96,7 +102,25 @@ class OpenAICompatibleTextGenerator:
             if value is not None:
                 payload[name] = value
         started = time.perf_counter()
-        response, attempts = self._post_with_retry(payload)
+        context_adjustment: dict[str, int] | None = None
+        try:
+            response, attempts = self._post_with_retry(payload)
+        except httpx.HTTPStatusError as exc:
+            safe_max_tokens = self._context_safe_max_tokens(exc.response)
+            requested_max_tokens = payload["max_tokens"]
+            if (
+                safe_max_tokens is None
+                or safe_max_tokens < 1
+                or safe_max_tokens >= requested_max_tokens
+            ):
+                raise
+            payload["max_tokens"] = safe_max_tokens
+            response, retry_attempts = self._post_with_retry(payload)
+            attempts = 1 + retry_attempts
+            context_adjustment = {
+                "requested_max_output_tokens": requested_max_tokens,
+                "effective_max_output_tokens": safe_max_tokens,
+            }
         latency_ms = (time.perf_counter() - started) * 1000.0
         try:
             raw = response.json()
@@ -140,9 +164,26 @@ class OpenAICompatibleTextGenerator:
                 "requested_model": self.model,
                 "returned_model": returned_model,
                 "http_attempts": attempts,
+                "context_window_adjustment": context_adjustment,
                 "raw_response": raw,
             },
         )
+
+    @classmethod
+    def _context_safe_max_tokens(cls, response: httpx.Response) -> int | None:
+        """Parse a vLLM context-overflow 400 without masking other client errors."""
+
+        try:
+            body = response.json()
+        except ValueError:
+            body = None
+        message: object = body.get("message") if isinstance(body, dict) else None
+        if not isinstance(message, str):
+            message = response.text
+        match = cls._CONTEXT_LIMIT_PATTERN.search(message)
+        if match is None:
+            return None
+        return int(match.group("context")) - int(match.group("input"))
 
     def _post_with_retry(
         self, payload: dict[str, Any]

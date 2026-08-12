@@ -124,6 +124,42 @@ def test_adapter_does_not_retry_nonretryable_client_error() -> None:
     assert calls == 1
 
 
+def test_adapter_retries_context_overflow_with_safe_output_limit() -> None:
+    payloads: list[dict[str, object]] = []
+
+    def handler(http_request: httpx.Request) -> httpx.Response:
+        payload = json.loads(http_request.content)
+        payloads.append(payload)
+        if len(payloads) == 1:
+            return httpx.Response(
+                400,
+                json={
+                    "message": (
+                        "'max_tokens' is too large: 64. This model's maximum "
+                        "context length is 80 tokens and your request has 40 "
+                        "input tokens (64 > 80 - 40)."
+                    )
+                },
+            )
+        return httpx.Response(200, json=response_payload())
+
+    with OpenAICompatibleTextGenerator(
+        model="model",
+        base_url="https://example.test/v1",
+        api_key_env="UNUSED",
+        api_key="secret",
+        transport=httpx.MockTransport(handler),
+    ) as generator:
+        result = generator.generate(request())
+
+    assert [payload["max_tokens"] for payload in payloads] == [64, 40]
+    assert result.metadata["http_attempts"] == 2
+    assert result.metadata["context_window_adjustment"] == {
+        "requested_max_output_tokens": 64,
+        "effective_max_output_tokens": 40,
+    }
+
+
 def test_adapter_rejects_success_without_text() -> None:
     transport = httpx.MockTransport(
         lambda _: httpx.Response(
