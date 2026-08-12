@@ -5,17 +5,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-from collections import Counter, deque
+from collections import Counter, OrderedDict, deque
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import HistGradientBoostingClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import average_precision_score, brier_score_loss, log_loss
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import StandardScaler
 
 ANALYSIS_VERSION = "node-round-adoption-v1"
 GRAPH_FOLDS = 5
@@ -279,18 +274,22 @@ def paired_trace_rows(
             parsed_counts and list(parsed_counts.values()).count(plurality) == 1
         )
 
-        now_attack_target = category(
+        current_attack_state = category(
             attack_turn["parsed_answer"], reference=reference, target=target
-        ) == "target"
-        now_clean_target = category(
+        )
+        current_clean_state = category(
             clean_turn["parsed_answer"], reference=reference, target=target
-        ) == "target"
-        previous_attack_target = category(
+        )
+        previous_attack_state = category(
             previous_attack["parsed_answer"], reference=reference, target=target
-        ) == "target"
-        previous_clean_target = category(
+        )
+        previous_clean_state = category(
             previous_clean["parsed_answer"], reference=reference, target=target
-        ) == "target"
+        )
+        now_attack_target = current_attack_state == "target"
+        now_clean_target = current_clean_state == "target"
+        previous_attack_target = previous_attack_state == "target"
+        previous_clean_target = previous_clean_state == "target"
         induced_now = now_attack_target and not now_clean_target
         induced_previous = previous_attack_target and not previous_clean_target
 
@@ -306,6 +305,11 @@ def paired_trace_rows(
             "outcome": int(induced_now and not induced_previous),
             "induced_target_state": int(induced_now),
             "induced_target_recovery": int(induced_previous and not induced_now),
+            "current_attack_state": current_attack_state,
+            "current_clean_state": current_clean_state,
+            "previous_attack_state": previous_attack_state,
+            "previous_clean_state": previous_clean_state,
+            "previous_induced_target_state": int(induced_previous),
             "received_target": int(target_count > 0),
             "received_induced_target": int(induced_count > 0),
             "incoming_target_count": target_count,
@@ -326,12 +330,12 @@ def paired_trace_rows(
             "attacker_distance_to_readout": attacker_to_readout,
             "attacker_distance_to_receiver": attacker_receiver_distance,
             "attacker_directly_incoming": float(attack_node in incoming[receiver]),
+            "graph_depth": max(
+                shortest_distance(outgoing, node, readout) for node in range(n)
+            ),
         }
-        previous_state = category(
-            previous_attack["parsed_answer"], reference=reference, target=target
-        )
         for name in STATE_NAMES:
-            row[f"receiver_previous_{name}"] = float(previous_state == name)
+            row[f"receiver_previous_{name}"] = float(previous_attack_state == name)
             row[f"incoming_{name}_count"] = state_counts[name]
             row[f"incoming_{name}_fraction"] = (
                 state_counts[name] / incoming_count if incoming_count else 0.0
@@ -340,7 +344,14 @@ def paired_trace_rows(
     return rows, errors
 
 
-def extract_updates(run_root: Path, status: dict[str, Any]) -> tuple[pd.DataFrame, dict[str, Any]]:
+def extract_updates(
+    run_root: Path,
+    status: dict[str, Any],
+    *,
+    graph_ids: set[str] | None = None,
+    task_ids: set[str] | None = None,
+    clean_cache_size: int = 32,
+) -> tuple[pd.DataFrame, dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     errors: list[str] = []
     paired_conditions = 0
@@ -350,8 +361,12 @@ def extract_updates(run_root: Path, status: dict[str, Any]) -> tuple[pd.DataFram
         graphs = {str(x["graph_id"]): x for x in read_jsonl(root / "selected_graphs.jsonl")}
         tasks = {str(x["task_id"]): x for x in read_jsonl(root / "batch/inputs/tasks.jsonl")}
         trace_root = root / "batch/traces"
-        clean_cache: dict[str, dict[str, Any]] = {}
+        clean_cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
         for pair in read_jsonl(root / "analysis-v1/paired_attacks.jsonl"):
+            if graph_ids is not None and str(pair["graph_id"]) not in graph_ids:
+                continue
+            if task_ids is not None and str(pair["task_id"]) not in task_ids:
+                continue
             paired_conditions += 1
             clean_id = str(pair["clean_run_spec_id"])
             clean_path = trace_root / f"{clean_id}.json"
@@ -361,6 +376,10 @@ def extract_updates(run_root: Path, status: dict[str, Any]) -> tuple[pd.DataFram
                 continue
             if clean_id not in clean_cache:
                 clean_cache[clean_id] = read_json(clean_path)
+                if len(clean_cache) > clean_cache_size:
+                    clean_cache.popitem(last=False)
+            else:
+                clean_cache.move_to_end(clean_id)
             extracted, pair_errors = paired_trace_rows(
                 pair=pair,
                 graph=graphs[str(pair["graph_id"])],
@@ -428,6 +447,11 @@ def subset_frame(frame: pd.DataFrame, subset: str) -> pd.DataFrame:
 
 
 def fit_predict(train: pd.DataFrame, test: pd.DataFrame, model_name: str) -> np.ndarray:
+    from sklearn.ensemble import HistGradientBoostingClassifier
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import StandardScaler
+
     prevalence = float(train["outcome"].mean()) if len(train) else 0.0
     features = list(MODEL_FEATURES[model_name])
     if not features or train["outcome"].nunique() < 2:
@@ -499,6 +523,8 @@ def crossed_predictions(assignments: pd.DataFrame) -> tuple[pd.DataFrame, pd.Dat
 
 
 def prediction_metrics(predictions: pd.DataFrame) -> pd.DataFrame:
+    from sklearn.metrics import average_precision_score, brier_score_loss, log_loss
+
     rows = []
     for (subset, model), group in predictions.groupby(["subset", "model"], sort=True):
         outcome = group["outcome"].to_numpy(dtype=int)

@@ -112,6 +112,11 @@ def test_paired_trace_rows_detect_new_induced_adoption() -> None:
     assert first["received_induced_target"] == 1
     assert first["incoming_induced_target_count"] == 1
     assert first["degroot_receiver_target_mass"] == pytest.approx(0.5)
+    assert first["previous_attack_state"] == "correct"
+    assert first["current_attack_state"] == "target"
+    assert first["current_clean_state"] == "correct"
+    assert first["previous_induced_target_state"] == 0
+    assert first["graph_depth"] == 2
     readout_final = next(row for row in rows if row["round_index"] == 2)
     assert readout_final["outcome"] == 1
     assert readout_final["incoming_induced_target_count"] == 1
