@@ -169,8 +169,12 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--base-url", default="http://127.0.0.1:8000/v1")
     result.add_argument("--temperature", type=float, default=0.7)
     result.add_argument("--top-p", type=float, default=0.8)
-    result.add_argument("--top-k", type=int, default=20)
-    result.add_argument("--min-p", type=float, default=0.0)
+    result.add_argument("--top-k", type=int)
+    result.add_argument("--min-p", type=float)
+    result.add_argument(
+        "--sampling-source",
+        default="explicit experiment configuration",
+    )
     result.add_argument("--max-output-tokens", type=int, default=16_384)
     result.add_argument("--max-workers", type=int, default=96)
     result.add_argument("--poll-seconds", type=int, default=30)
@@ -224,7 +228,7 @@ def main() -> None:
             "top_k": args.top_k,
             "min_p": args.min_p,
             "max_output_tokens": args.max_output_tokens,
-            "source": "official Qwen3-4B-Instruct-2507 model card",
+            "source": args.sampling_source,
         },
         "reuse_policy": {
             "round_zero": "independent_per_graph_condition_attacker_run",
@@ -273,10 +277,6 @@ def main() -> None:
             str(args.temperature),
             "--top-p",
             str(args.top_p),
-            "--top-k",
-            str(args.top_k),
-            "--min-p",
-            str(args.min_p),
             "--max-output-tokens",
             str(args.max_output_tokens),
             "--timeout-seconds",
@@ -288,6 +288,10 @@ def main() -> None:
             "--horizon-policy",
             "fixed",
         ]
+        if args.top_k is not None:
+            command.extend(["--top-k", str(args.top_k)])
+        if args.min_p is not None:
+            command.extend(["--min-p", str(args.min_p)])
         run_stage(
             name=f"batch_{key}",
             command=command,
