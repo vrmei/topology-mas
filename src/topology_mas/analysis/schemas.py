@@ -117,7 +117,7 @@ class ClassicalInitialStateRecord(BaseModel):
     clean_run_spec_id: str
     reference_answer: str
     target_answer: str
-    structural_node_to_replica: tuple[int, ...]
+    structural_node_to_replica: tuple[int, ...] | None = None
     node_parsed_answers: tuple[str | None, ...]
     node_answer_states: tuple[AnswerState, ...]
 

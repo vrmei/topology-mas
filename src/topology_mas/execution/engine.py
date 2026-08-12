@@ -16,6 +16,7 @@ from topology_mas.execution.schemas import (
 )
 from topology_mas.execution.seeding import (
     anonymous_message_order_key,
+    independent_run_round_seed,
     runtime_replica_round_seed,
     stable_fingerprint,
     stable_id,
@@ -137,11 +138,19 @@ class SynchronousExecutionEngine:
                     if initial_assignment is not None
                     else node_id
                 )
-                generation_seed = runtime_replica_round_seed(
-                    experiment_seed=seed,
-                    task_id=task.task_id,
-                    replica_slot=stochastic_stream_slot,
-                    round_index=round_index,
+                generation_seed = (
+                    independent_run_round_seed(
+                        run_id=run_id,
+                        node_id=node_id,
+                        round_index=round_index,
+                    )
+                    if self.settings.initial_state_policy == "independent_per_run"
+                    else runtime_replica_round_seed(
+                        experiment_seed=seed,
+                        task_id=task.task_id,
+                        replica_slot=stochastic_stream_slot,
+                        round_index=round_index,
+                    )
                 )
                 is_attacker = condition is RunCondition.ATTACK and node_id == attack_node
                 if is_attacker:
@@ -186,6 +195,10 @@ class SynchronousExecutionEngine:
                         messages=prompt_messages,
                         seed=generation_seed,
                         temperature=self.settings.temperature,
+                        top_p=self.settings.top_p,
+                        top_k=self.settings.top_k,
+                        min_p=self.settings.min_p,
+                        presence_penalty=self.settings.presence_penalty,
                         max_output_tokens=self.settings.max_output_tokens,
                     )
                     completion = self._generator.generate(request)

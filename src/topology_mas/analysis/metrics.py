@@ -336,8 +336,6 @@ def analyze_batch(batch: LoadedBatch) -> AnalysisResult:
         if [turn.node_id for turn in round_zero] != list(range(graph.node_count)):
             raise ValueError(f"clean trace {stored.trace.run_id} has incomplete Round zero")
         mapping = stored.trace.structural_node_to_replica
-        if mapping is None:
-            raise ValueError("classical export requires an explicit initial assignment")
         initial_states.append(
             ClassicalInitialStateRecord(
                 task_id=task_id,

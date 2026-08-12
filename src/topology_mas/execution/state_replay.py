@@ -49,6 +49,10 @@ class StateReplayRequestIdentity(BaseModel):
     messages: tuple[dict[str, str], ...]
     generation_seed: int
     temperature: float
+    top_p: float | None = None
+    top_k: int | None = None
+    min_p: float | None = None
+    presence_penalty: float | None = None
     max_output_tokens: int
 
 
@@ -219,6 +223,10 @@ class StateConsistentReplayGenerator:
             messages=tuple(message.model_dump(mode="json") for message in request.messages),
             generation_seed=request.seed,
             temperature=request.temperature,
+            top_p=request.top_p,
+            top_k=request.top_k,
+            min_p=request.min_p,
+            presence_penalty=request.presence_penalty,
             max_output_tokens=request.max_output_tokens,
         )
 

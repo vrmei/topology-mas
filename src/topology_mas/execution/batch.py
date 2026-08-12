@@ -32,7 +32,7 @@ from topology_mas.models import (
 )
 from topology_mas.topology.sampling import graph_collection_fingerprint
 
-BATCH_EXECUTION_VERSION = "paired-batch-v3"
+BATCH_EXECUTION_VERSION = "paired-batch-v4"
 
 
 class BatchExecutionConfig(BaseModel):
@@ -43,6 +43,9 @@ class BatchExecutionConfig(BaseModel):
     experiment_seeds: tuple[int, ...] = Field(min_length=1)
     assignment_seeds: tuple[int, ...] = Field(min_length=1)
     include_attacks: bool = True
+    initial_state_policy: Literal[
+        "shared_round_zero_cache", "independent_per_run"
+    ] = "shared_round_zero_cache"
     requested_model: str = Field(min_length=1)
     expected_returned_model: str | None = None
     provider_base_url: str | None = None
@@ -105,8 +108,12 @@ class BatchExecutionManifest(BaseModel):
     graph_ids: tuple[str, ...]
     task_collection_fingerprint: str = Field(min_length=64, max_length=64)
     graph_collection_fingerprint: str = Field(min_length=64, max_length=64)
-    round_zero_fingerprint: str = Field(min_length=64, max_length=64)
-    round_zero_index_fingerprint: str = Field(min_length=64, max_length=64)
+    round_zero_fingerprint: str | None = Field(
+        default=None, min_length=64, max_length=64
+    )
+    round_zero_index_fingerprint: str | None = Field(
+        default=None, min_length=64, max_length=64
+    )
     adversarial_answers_fingerprint: str = Field(min_length=64, max_length=64)
     plan_fingerprint: str = Field(min_length=64, max_length=64)
     expected_run_count: int = Field(ge=1)
@@ -361,6 +368,10 @@ class BatchExecutionRunner:
     ) -> None:
         if max_workers < 1:
             raise ValueError("max_workers must be at least one")
+        if engine.settings.initial_state_policy != config.initial_state_policy:
+            raise ValueError(
+                "engine and batch initial-state policies must match explicitly"
+            )
         self.engine = engine
         self.config = config
         self.store = BatchExecutionStore(output_dir)
@@ -371,7 +382,7 @@ class BatchExecutionRunner:
         *,
         tasks: tuple[TaskInstance, ...],
         graphs: tuple[GraphSpec, ...],
-        round_zero_records: tuple[RoundZeroRecord, ...],
+        round_zero_records: tuple[RoundZeroRecord, ...] = (),
         adversarial_answers: dict[str, AdversarialAnswer] | None = None,
     ) -> tuple[tuple[BatchExecutionOutcome, ...], BatchExecutionSummary]:
         adversarial = adversarial_answers or {}
@@ -381,19 +392,27 @@ class BatchExecutionRunner:
             round_zero_records=round_zero_records,
             adversarial_answers=adversarial,
         )
-        assignments = {
-            seed: build_initial_state_assignment(
-                node_count=node_count,
-                assignment_seed=seed,
-            )
-            for seed in self.config.assignment_seeds
-        }
+        assignments = (
+            {
+                seed: build_initial_state_assignment(
+                    node_count=node_count,
+                    assignment_seed=seed,
+                )
+                for seed in self.config.assignment_seeds
+            }
+            if self.config.initial_state_policy == "shared_round_zero_cache"
+            else {}
+        )
         plan = self._build_plan(tasks=tasks, graphs=graphs)
-        selected_records = tuple(
-            record_index[(task.task_id, experiment_seed, replica_slot)]
-            for task in tasks
-            for experiment_seed in self.config.experiment_seeds
-            for replica_slot in range(node_count)
+        selected_records = (
+            tuple(
+                record_index[(task.task_id, experiment_seed, replica_slot)]
+                for task in tasks
+                for experiment_seed in self.config.experiment_seeds
+                for replica_slot in range(node_count)
+            )
+            if self.config.initial_state_policy == "shared_round_zero_cache"
+            else ()
         )
         selected_adversarial = (
             tuple(adversarial[task.task_id] for task in tasks)
@@ -413,8 +432,14 @@ class BatchExecutionRunner:
             graph_ids=tuple(graph.graph_id for graph in graphs),
             task_collection_fingerprint=task_collection_fingerprint(tasks),
             graph_collection_fingerprint=graph_collection_fingerprint(graphs),
-            round_zero_fingerprint=content_fingerprint(selected_records),
-            round_zero_index_fingerprint=content_fingerprint(round_zero_references),
+            round_zero_fingerprint=(
+                content_fingerprint(selected_records) if selected_records else None
+            ),
+            round_zero_index_fingerprint=(
+                content_fingerprint(round_zero_references)
+                if round_zero_references
+                else None
+            ),
             adversarial_answers_fingerprint=content_fingerprint(selected_adversarial),
             plan_fingerprint=content_fingerprint(plan),
             expected_run_count=len(plan),
@@ -468,7 +493,7 @@ class BatchExecutionRunner:
         selected_records: tuple[RoundZeroRecord, ...],
         adversarial: dict[str, AdversarialAnswer],
     ) -> BatchExecutionOutcome:
-        assignment = assignments[spec.assignment_seed]
+        assignment = assignments.get(spec.assignment_seed)
         cached = self.store.load(spec)
         if cached is not None:
             self._validate_trace(
@@ -494,7 +519,7 @@ class BatchExecutionRunner:
                 adversarial_answer=(
                     adversarial[spec.task_id] if spec.condition is RunCondition.ATTACK else None
                 ),
-                round_zero_records=selected_records,
+                round_zero_records=(selected_records if assignment is not None else None),
                 initial_assignment=assignment,
             )
             self._validate_trace(
@@ -609,33 +634,44 @@ class BatchExecutionRunner:
             if key in record_index:
                 raise ValueError(f"duplicate round-zero record for {key}")
             record_index[key] = record
-        missing_records = [
-            (task_id, experiment_seed, replica_slot)
-            for task_id in task_ids
-            for experiment_seed in self.config.experiment_seeds
-            for replica_slot in range(node_count)
-            if (task_id, experiment_seed, replica_slot) not in record_index
-        ]
-        if missing_records:
-            preview = ", ".join(map(str, missing_records[:5]))
-            raise ValueError(f"round-zero records are missing: {preview}")
-        selected_records = [
-            record_index[(task_id, experiment_seed, replica_slot)]
-            for task_id in task_ids
-            for experiment_seed in self.config.experiment_seeds
-            for replica_slot in range(node_count)
-        ]
-        if any(record.prompt_version != PROMPT_VERSION for record in selected_records):
-            raise ValueError("round-zero prompt version differs from the execution prompt")
-        if any(
-            record.requested_model != self.config.requested_model for record in selected_records
-        ):
-            raise ValueError("round-zero requested model differs from the batch model")
-        if self.config.expected_returned_model is not None and any(
-            record.returned_model != self.config.expected_returned_model
-            for record in selected_records
-        ):
-            raise ValueError("round-zero returned model differs from the pinned batch model")
+        if self.config.initial_state_policy == "independent_per_run":
+            if round_zero_records:
+                raise ValueError(
+                    "independent_per_run forbids a shared Round-zero collection"
+                )
+            if self.config.state_replay_model_fingerprint is not None:
+                raise ValueError(
+                    "independent_per_run forbids cross-run state replay"
+                )
+        else:
+            missing_records = [
+                (task_id, experiment_seed, replica_slot)
+                for task_id in task_ids
+                for experiment_seed in self.config.experiment_seeds
+                for replica_slot in range(node_count)
+                if (task_id, experiment_seed, replica_slot) not in record_index
+            ]
+            if missing_records:
+                preview = ", ".join(map(str, missing_records[:5]))
+                raise ValueError(f"round-zero records are missing: {preview}")
+            selected_records = [
+                record_index[(task_id, experiment_seed, replica_slot)]
+                for task_id in task_ids
+                for experiment_seed in self.config.experiment_seeds
+                for replica_slot in range(node_count)
+            ]
+            if any(record.prompt_version != PROMPT_VERSION for record in selected_records):
+                raise ValueError("round-zero prompt version differs from the execution prompt")
+            if any(
+                record.requested_model != self.config.requested_model
+                for record in selected_records
+            ):
+                raise ValueError("round-zero requested model differs from the batch model")
+            if self.config.expected_returned_model is not None and any(
+                record.returned_model != self.config.expected_returned_model
+                for record in selected_records
+            ):
+                raise ValueError("round-zero returned model differs from the pinned batch model")
 
         if self.config.include_attacks:
             missing_answers = [
@@ -661,7 +697,7 @@ class BatchExecutionRunner:
         *,
         spec: ExecutionRunSpec,
         trace: RunTrace,
-        assignment: InitialStateAssignment,
+        assignment: InitialStateAssignment | None,
         graph: GraphSpec,
         expected_records: dict[tuple[str, int, int], RoundZeroRecord],
         adversarial_answer: AdversarialAnswer | None,
@@ -698,7 +734,16 @@ class BatchExecutionRunner:
             raise BatchExecutionConflictError(
                 f"trace execution protocol differs for run spec {spec.run_spec_id}"
             )
-        if (
+        if assignment is None:
+            if (
+                trace.initial_assignment_id is not None
+                or trace.initial_assignment_seed is not None
+                or trace.structural_node_to_replica is not None
+            ):
+                raise BatchExecutionConflictError(
+                    f"trace unexpectedly reuses an initial assignment for {spec.run_spec_id}"
+                )
+        elif (
             trace.initial_assignment_id != assignment.assignment_id
             or trace.initial_assignment_seed != assignment.assignment_seed
             or trace.structural_node_to_replica != assignment.structural_node_to_replica
@@ -718,12 +763,22 @@ class BatchExecutionRunner:
                         f"attacker round zero was not replayed for {spec.run_spec_id}"
                     )
                 continue
-            replica_slot = assignment.replica_for_node(turn.node_id)
-            expected = expected_records[(spec.task_id, spec.experiment_seed, replica_slot)]
-            if turn.metadata.get("round_zero_record_id") != expected.record_id:
-                raise BatchExecutionConflictError(
-                    f"round-zero record differs for run spec {spec.run_spec_id}"
-                )
+            if assignment is None:
+                if not turn.metadata.get("generator_called"):
+                    raise BatchExecutionConflictError(
+                        f"normal Round-zero node was not generated for {spec.run_spec_id}"
+                    )
+                if turn.metadata.get("round_zero_cache_replay"):
+                    raise BatchExecutionConflictError(
+                        f"Round-zero cache leaked into independent run {spec.run_spec_id}"
+                    )
+            else:
+                replica_slot = assignment.replica_for_node(turn.node_id)
+                expected = expected_records[(spec.task_id, spec.experiment_seed, replica_slot)]
+                if turn.metadata.get("round_zero_record_id") != expected.record_id:
+                    raise BatchExecutionConflictError(
+                        f"round-zero record differs for run spec {spec.run_spec_id}"
+                    )
         if self.config.expected_returned_model is not None:
             runtime_models = {
                 turn.model_name for turn in trace.turns if turn.metadata.get("generator_called")

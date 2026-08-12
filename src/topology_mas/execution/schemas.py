@@ -31,6 +31,10 @@ class TextGenerationRequest(BaseModel):
     messages: tuple[ChatMessage, ...] = Field(min_length=1)
     seed: int
     temperature: float = Field(ge=0.0, le=2.0)
+    top_p: float | None = Field(default=None, gt=0.0, le=1.0)
+    top_k: int | None = Field(default=None, ge=-1)
+    min_p: float | None = Field(default=None, ge=0.0, le=1.0)
+    presence_penalty: float | None = Field(default=None, ge=-2.0, le=2.0)
     max_output_tokens: int = Field(ge=1)
 
 
@@ -54,7 +58,14 @@ class ExecutionSettings(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
+    top_p: float | None = Field(default=None, gt=0.0, le=1.0)
+    top_k: int | None = Field(default=None, ge=-1)
+    min_p: float | None = Field(default=None, ge=0.0, le=1.0)
+    presence_penalty: float | None = Field(default=None, ge=-2.0, le=2.0)
     max_output_tokens: int = Field(default=768, ge=1)
+    initial_state_policy: Literal[
+        "shared_round_zero_cache", "independent_per_run"
+    ] = "shared_round_zero_cache"
     neighbor_message_order: Literal["content_hash"] = "content_hash"
     message_order_seed: int = 0
     active_node_pruning: Literal[True] = True

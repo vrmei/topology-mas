@@ -18,6 +18,9 @@ def request() -> TextGenerationRequest:
         messages=(ChatMessage(role="user", content="Return FINAL_ANSWER: 42"),),
         seed=17,
         temperature=0.25,
+        top_p=0.8,
+        top_k=20,
+        min_p=0.0,
         max_output_tokens=64,
     )
 
@@ -60,6 +63,9 @@ def test_adapter_sends_openai_compatible_payload_and_normalizes_response() -> No
         "messages": [{"role": "user", "content": "Return FINAL_ANSWER: 42"}],
         "max_tokens": 64,
         "temperature": 0.25,
+        "top_p": 0.8,
+        "top_k": 20,
+        "min_p": 0.0,
         "seed": 17,
         "stream": False,
     }

@@ -196,6 +196,66 @@ def test_batch_builds_complete_paired_matrix_and_resumes(tmp_path: Path) -> None
     assert all(outcome.disposition is BatchDisposition.CACHED for outcome in resumed_outcomes)
 
 
+def test_independent_round_zero_is_generated_per_graph_and_condition(
+    tmp_path: Path,
+) -> None:
+    generator = CountingGenerator(lambda _: "Independent solution.\nFINAL_ANSWER: 42")
+    batch = BatchExecutionRunner(
+        SynchronousExecutionEngine(
+            generator,
+            settings=ExecutionSettings(
+                temperature=0.7,
+                top_p=0.8,
+                top_k=20,
+                min_p=0.0,
+                initial_state_policy="independent_per_run",
+            ),
+        ),
+        config=BatchExecutionConfig(
+            experiment_seeds=(0,),
+            assignment_seeds=(0,),
+            initial_state_policy="independent_per_run",
+            requested_model="fake-model",
+            expected_returned_model="fake-model",
+        ),
+        output_dir=tmp_path,
+        max_workers=4,
+    )
+
+    outcomes, summary = batch.run(
+        tasks=(task(),),
+        graphs=graphs(),
+        adversarial_answers={"task-1": adversarial_answer()},
+    )
+
+    assert len(outcomes) == 6
+    assert summary.clean_runs == 2
+    assert summary.attack_runs == 4
+    assert summary.state_replay_cache_hits == 0
+    assert summary.trace_backend_calls == summary.trace_model_calls
+    stored = [
+        json.loads(Path(outcome.trace_path).read_text(encoding="utf-8"))["trace"]
+        for outcome in outcomes
+    ]
+    normal_round_zero = [
+        turn
+        for trace in stored
+        for turn in trace["turns"]
+        if turn["round_index"] == 0 and not turn["metadata"].get("attack_replay")
+    ]
+    assert normal_round_zero
+    assert all(turn["metadata"]["generator_called"] for turn in normal_round_zero)
+    assert not any(
+        turn["metadata"].get("round_zero_cache_replay") for turn in normal_round_zero
+    )
+    round_zero_seeds = [turn["generation_seed"] for turn in normal_round_zero]
+    assert len(round_zero_seeds) == len(set(round_zero_seeds))
+    manifest = json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["config"]["initial_state_policy"] == "independent_per_run"
+    assert manifest["round_zero_fingerprint"] is None
+    assert (tmp_path / "inputs" / "round_zero_index.jsonl").read_text() == ""
+
+
 def test_batch_reports_logical_calls_separately_from_state_replay_calls(
     tmp_path: Path,
 ) -> None:

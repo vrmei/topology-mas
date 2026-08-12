@@ -42,6 +42,22 @@ def runtime_replica_round_seed(
     )
 
 
+def independent_run_round_seed(
+    *,
+    run_id: str,
+    node_id: int,
+    round_index: int,
+) -> int:
+    """Independent stream bound to one graph/condition/attacker run.
+
+    Unlike the historical anonymous-replica seed, this identity deliberately includes
+    the full run ID. Two topologies or conditions therefore cannot receive the same
+    stochastic stream merely because their task and structural node number agree.
+    """
+
+    return stable_integer("independent-run-round", run_id, node_id, round_index)
+
+
 def round_zero_replica_seed(*, experiment_seed: int, task_id: str, replica_slot: int) -> int:
     """Graph-independent sampling seed for one cached initial-state replica."""
 

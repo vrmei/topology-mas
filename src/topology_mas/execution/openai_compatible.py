@@ -47,6 +47,7 @@ class OpenAICompatibleTextGenerator:
         retry_base_seconds: float = 1.0,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
+        key: str | None
         if api_key is not None:
             key = api_key
         elif api_key_env is not None:
@@ -90,6 +91,10 @@ class OpenAICompatibleTextGenerator:
             "seed": request.seed,
             "stream": False,
         }
+        for name in ("top_p", "top_k", "min_p", "presence_penalty"):
+            value = getattr(request, name)
+            if value is not None:
+                payload[name] = value
         started = time.perf_counter()
         response, attempts = self._post_with_retry(payload)
         latency_ms = (time.perf_counter() - started) * 1000.0
