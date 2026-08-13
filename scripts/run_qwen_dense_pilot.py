@@ -176,6 +176,8 @@ def parser() -> argparse.ArgumentParser:
         default="explicit experiment configuration",
     )
     result.add_argument("--max-output-tokens", type=int, default=16_384)
+    result.add_argument("--timeout-seconds", type=float, default=600.0)
+    result.add_argument("--max-attempts", type=int, default=3)
     result.add_argument("--max-workers", type=int, default=96)
     result.add_argument("--poll-seconds", type=int, default=30)
     result.add_argument("--only-strata", nargs="*")
@@ -280,9 +282,9 @@ def main() -> None:
             "--max-output-tokens",
             str(args.max_output_tokens),
             "--timeout-seconds",
-            "600",
+            str(args.timeout_seconds),
             "--max-attempts",
-            "3",
+            str(args.max_attempts),
             "--max-workers",
             str(args.max_workers),
             "--horizon-policy",
