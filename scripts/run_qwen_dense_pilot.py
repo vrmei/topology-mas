@@ -97,66 +97,74 @@ def run_stage(
     expected: int,
     poll_seconds: int,
     status: dict[str, Any],
-) -> None:
+    max_restarts: int = 0,
+) -> bool:
     log_root = run_root / "stage-logs" / name
     log_root.mkdir(parents=True, exist_ok=True)
-    started = time.time()
-    stage = {
-        "name": name,
-        "status": "running",
-        "command": command,
-        "started_at": utc_now(),
-        "expected_traces": expected,
-    }
-    status["current_stage"] = stage
-    atomic_json(run_root / "orchestrator_status.json", status)
     environment = os.environ.copy()
     environment["PYTHONPATH"] = str(project_root / "src")
-    with (log_root / "stdout.log").open("a", encoding="utf-8") as stdout, (
-        log_root / "stderr.log"
-    ).open("a", encoding="utf-8") as stderr:
-        process = subprocess.Popen(
-            command,
-            cwd=project_root,
-            env=environment,
-            stdin=subprocess.DEVNULL,
-            stdout=stdout,
-            stderr=stderr,
-        )
-        while process.poll() is None:
-            completed = trace_count(batch_root)
-            sample = {
-                "timestamp": utc_now(),
-                "stage": name,
-                "pid": process.pid,
-                "elapsed_seconds": time.time() - started,
-                "completed_traces": completed,
-                "expected_traces": expected,
-                "gpu": gpu_snapshot(),
-                "system_disk_free_bytes": shutil.disk_usage("/").free,
-                "data_disk_free_bytes": shutil.disk_usage(run_root).free,
-            }
-            append_jsonl(run_root / "telemetry.jsonl", sample)
-            stage.update(sample)
-            atomic_json(run_root / "orchestrator_status.json", status)
-            time.sleep(poll_seconds)
-        return_code = process.wait()
-    stage.update(
-        {
-            "status": "completed" if return_code == 0 else "failed",
-            "return_code": return_code,
-            "ended_at": utc_now(),
-            "elapsed_seconds": time.time() - started,
-            "completed_traces": trace_count(batch_root),
+    for attempt in range(1, max_restarts + 2):
+        started = time.time()
+        stage = {
+            "name": name,
+            "attempt": attempt,
+            "max_attempts": max_restarts + 1,
+            "status": "running",
+            "command": command,
+            "started_at": utc_now(),
+            "expected_traces": expected,
         }
-    )
-    status.setdefault("stages", []).append(stage)
-    status["current_stage"] = None
-    atomic_json(run_root / "orchestrator_status.json", status)
-    if return_code:
-        status["status"] = "failed"
+        status["current_stage"] = stage
         atomic_json(run_root / "orchestrator_status.json", status)
-        raise RuntimeError(f"stage {name} failed with return code {return_code}")
+        with (log_root / f"stdout-attempt-{attempt}.log").open(
+            "a", encoding="utf-8"
+        ) as stdout, (log_root / f"stderr-attempt-{attempt}.log").open(
+            "a", encoding="utf-8"
+        ) as stderr:
+            process = subprocess.Popen(
+                command,
+                cwd=project_root,
+                env=environment,
+                stdin=subprocess.DEVNULL,
+                stdout=stdout,
+                stderr=stderr,
+            )
+            while process.poll() is None:
+                completed = trace_count(batch_root)
+                sample = {
+                    "timestamp": utc_now(),
+                    "stage": name,
+                    "attempt": attempt,
+                    "pid": process.pid,
+                    "elapsed_seconds": time.time() - started,
+                    "completed_traces": completed,
+                    "expected_traces": expected,
+                    "gpu": gpu_snapshot(),
+                    "system_disk_free_bytes": shutil.disk_usage("/").free,
+                    "data_disk_free_bytes": shutil.disk_usage(run_root).free,
+                }
+                append_jsonl(run_root / "telemetry.jsonl", sample)
+                stage.update(sample)
+                atomic_json(run_root / "orchestrator_status.json", status)
+                time.sleep(poll_seconds)
+            return_code = process.wait()
+        completed_traces = trace_count(batch_root)
+        succeeded = return_code == 0 and completed_traces >= expected
+        stage.update(
+            {
+                "status": "completed" if succeeded else "failed",
+                "return_code": return_code,
+                "ended_at": utc_now(),
+                "elapsed_seconds": time.time() - started,
+                "completed_traces": completed_traces,
+            }
+        )
+        status.setdefault("stages", []).append(stage)
+        status["current_stage"] = None
+        atomic_json(run_root / "orchestrator_status.json", status)
+        if succeeded:
+            return True
+    return False
 
 
 def parser() -> argparse.ArgumentParser:
@@ -178,6 +186,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--max-output-tokens", type=int, default=16_384)
     result.add_argument("--timeout-seconds", type=float, default=600.0)
     result.add_argument("--max-attempts", type=int, default=3)
+    result.add_argument("--stage-restarts", type=int, default=3)
     result.add_argument("--max-workers", type=int, default=96)
     result.add_argument("--poll-seconds", type=int, default=30)
     result.add_argument("--only-strata", nargs="*")
@@ -294,7 +303,7 @@ def main() -> None:
             command.extend(["--top-k", str(args.top_k)])
         if args.min_p is not None:
             command.extend(["--min-p", str(args.min_p)])
-        run_stage(
+        batch_succeeded = run_stage(
             name=f"batch_{key}",
             command=command,
             project_root=project_root,
@@ -303,7 +312,13 @@ def main() -> None:
             expected=stratum["expected_traces"],
             poll_seconds=args.poll_seconds,
             status=status,
+            max_restarts=args.stage_restarts,
         )
+        if not batch_succeeded:
+            stratum["status"] = "batch_failed"
+            status.setdefault("failed_strata", []).append(key)
+            atomic_json(run_root / "orchestrator_status.json", status)
+            continue
         analysis_root = stratum_root / "analysis-v1"
         analysis_command = [
             sys.executable,
@@ -314,7 +329,7 @@ def main() -> None:
             "--output-dir",
             str(analysis_root),
         ]
-        run_stage(
+        analysis_succeeded = run_stage(
             name=f"analysis_{key}",
             command=analysis_command,
             project_root=project_root,
@@ -323,14 +338,23 @@ def main() -> None:
             expected=stratum["expected_traces"],
             poll_seconds=args.poll_seconds,
             status=status,
+            max_restarts=1,
         )
+        if not analysis_succeeded:
+            stratum["status"] = "analysis_failed"
+            status.setdefault("failed_strata", []).append(key)
+            atomic_json(run_root / "orchestrator_status.json", status)
+            continue
         stratum["batch_summary"] = json.loads((batch_root / "summary.json").read_text())
         stratum["analysis_manifest"] = json.loads(
             (analysis_root / "manifest.json").read_text()
         )
+        stratum["status"] = "completed"
         atomic_json(run_root / "orchestrator_status.json", status)
 
-    status["status"] = "completed"
+    status["status"] = (
+        "completed_with_failures" if status.get("failed_strata") else "completed"
+    )
     status["ended_at"] = utc_now()
     atomic_json(run_root / "orchestrator_status.json", status)
 
