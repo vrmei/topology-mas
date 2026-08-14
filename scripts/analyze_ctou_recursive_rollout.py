@@ -274,12 +274,40 @@ def particle_rollout(
     particles: int,
     seed: int,
 ) -> np.ndarray:
+    states = np.tile(np.asarray(initial_states, dtype=np.int8), (particles, 1))
+    return particle_rollout_from_particles(
+        graph=graph,
+        initial_particles=states,
+        attack_node=attack_node,
+        model=model,
+        lookup=lookup,
+        seed=seed,
+    )
+
+
+def particle_rollout_from_particles(
+    *,
+    graph: dict[str, Any],
+    initial_particles: np.ndarray,
+    attack_node: int,
+    model: str,
+    lookup: np.ndarray | None,
+    seed: int,
+) -> np.ndarray:
+    """Roll out a joint particle population with caller-supplied Round-0 states."""
+
     n = int(graph["node_count"])
     horizon = int(graph["max_rounds"])
     readout = int(graph["readout_node"])
     incoming, _ = graph_maps(graph)
     distances = distances_to_readout(graph)
-    states = np.tile(np.asarray(initial_states, dtype=np.int8), (particles, 1))
+    states = np.asarray(initial_particles, dtype=np.int8).copy()
+    if states.ndim != 2 or states.shape[1] != n:
+        raise ValueError(f"initial_particles must have shape (particles, {n})")
+    if len(states) == 0:
+        raise ValueError("initial_particles must not be empty")
+    particles = len(states)
+    states[:, attack_node] = STATE_INDEX["target"]
     rng = np.random.default_rng(seed)
     for round_index in range(1, horizon + 1):
         updated = states.copy()
