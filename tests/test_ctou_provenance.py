@@ -181,6 +181,8 @@ def test_new_target_state_after_direct_exposure_is_relayed() -> None:
     row = next(item for item in rows if item["receiver_node"] == 3 and item["round_index"] == 2)
     assert row["target_origin"] == "relayed_only"
     assert row["relayed_target_count"] == 1
+    assert row["previous_provenance_state"] == "correct"
+    assert row["next_provenance_state"] == "target_attack"
 
 
 def test_common_support_standardization_does_not_mix_ctou_cells() -> None:

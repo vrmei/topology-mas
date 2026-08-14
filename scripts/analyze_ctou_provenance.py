@@ -239,6 +239,22 @@ def provenance_trace_rows(
 
         previous_state = trace_category(previous, reference=reference, target=target)
         next_state = trace_category(turn, reference=reference, target=target)
+        previous_target_origin = target_state_origin(receiver, round_index - 1)
+        next_target_origin = target_state_origin(receiver, round_index)
+        previous_provenance_state = (
+            "target_attack"
+            if previous_state == "target" and previous_target_origin == "relayed"
+            else "target_natural"
+            if previous_state == "target"
+            else previous_state
+        )
+        next_provenance_state = (
+            "target_attack"
+            if next_state == "target" and next_target_origin == "relayed"
+            else "target_natural"
+            if next_state == "target"
+            else next_state
+        )
         rows.append(
             {
                 "stratum": stratum,
@@ -253,6 +269,8 @@ def provenance_trace_rows(
                 "m": m,
                 "previous_state": previous_state,
                 "next_state": next_state,
+                "previous_provenance_state": previous_provenance_state,
+                "next_provenance_state": next_provenance_state,
                 "next_is_target": int(next_state == "target"),
                 "next_is_correct": int(next_state == "correct"),
                 "incoming_correct_count": counts["correct"],
@@ -271,6 +289,8 @@ def provenance_trace_rows(
                 "recursive_correct_max_overlap": recursive_max_overlap,
             }
         )
+        if direct_target_count + relayed_target_count + natural_target_count != counts["target"]:
+            errors.append(f"{pair['attack_run_spec_id']}: target provenance count mismatch")
     return rows, errors
 
 
