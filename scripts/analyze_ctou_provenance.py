@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-from collections import OrderedDict, defaultdict
 from itertools import combinations
 from pathlib import Path
 from typing import Any, Iterable
@@ -15,7 +14,7 @@ import pandas as pd
 from analyze_node_round_adoption import graph_maps, read_json, read_jsonl, trace_category
 
 
-ANALYSIS_VERSION = "ctou-provenance-v1"
+ANALYSIS_VERSION = "ctou-provenance-v3"
 CELL_COLUMNS = (
     "previous_state",
     "round_index",
@@ -72,19 +71,66 @@ def _lineage_builder(
     return lineage
 
 
+def _target_origin_builder(
+    turns: dict[tuple[int, int], dict[str, Any]],
+    messages: dict[str, dict[str, Any]],
+    *,
+    reference: str,
+    target: str,
+    attack_node: int,
+):
+    """Trace whether a normal target state descends from the attacker in this run."""
+    memo: dict[tuple[int, int], str] = {}
+
+    def target_origin(node: int, round_index: int) -> str:
+        key = (node, round_index)
+        if key in memo:
+            return memo[key]
+        turn = turns.get(key)
+        if turn is None or trace_category(turn, reference=reference, target=target) != "target":
+            memo[key] = "none"
+            return memo[key]
+        if node == attack_node:
+            memo[key] = "direct"
+            return memo[key]
+        if round_index == 0:
+            memo[key] = "natural"
+            return memo[key]
+        previous = turns.get((node, round_index - 1))
+        if previous is not None and trace_category(previous, reference=reference, target=target) == "target":
+            memo[key] = target_origin(node, round_index - 1)
+            return memo[key]
+        incoming_origins: list[str] = []
+        for message_id in turn.get("incoming_message_ids", []):
+            message = messages.get(str(message_id))
+            if message is None:
+                continue
+            if trace_category(message, reference=reference, target=target) != "target":
+                continue
+            incoming_origins.append(
+                target_origin(int(message["sender"]), int(message["round_index"]))
+            )
+        memo[key] = (
+            "relayed"
+            if any(origin in {"direct", "relayed"} for origin in incoming_origins)
+            else "natural"
+        )
+        return memo[key]
+
+    return target_origin
+
+
 def provenance_trace_rows(
     *,
     pair: dict[str, Any],
     graph: dict[str, Any],
     task: dict[str, Any],
-    clean_stored: dict[str, Any],
     attack_stored: dict[str, Any],
     stratum: str,
 ) -> tuple[list[dict[str, Any]], list[str]]:
     """Reconstruct exact CTOU counts and source ancestry from one attack trace."""
     errors: list[str] = []
     trace = attack_stored["trace"]
-    clean_trace = clean_stored["trace"]
     attack_node = int(pair["attack_node"])
     target = str(pair["target_answer"])
     reference = str(task["reference_answer"])
@@ -97,11 +143,14 @@ def provenance_trace_rows(
         for turn in trace["turns"]
     }
     messages = {str(message["message_id"]): message for message in trace["messages"]}
-    clean_messages = {
-        (int(message["sender"]), int(message["round_index"])): message
-        for message in clean_trace["messages"]
-    }
     lineage = _lineage_builder(turns, messages)
+    target_state_origin = _target_origin_builder(
+        turns,
+        messages,
+        reference=reference,
+        target=target,
+        attack_node=attack_node,
+    )
     rows: list[dict[str, Any]] = []
 
     for (receiver, round_index), turn in sorted(turns.items()):
@@ -147,15 +196,13 @@ def provenance_trace_rows(
             if sender == attack_node:
                 direct_target_count += 1
                 continue
-            clean_message = clean_messages.get((sender, message_round))
-            if clean_message is None:
-                errors.append(f"{pair['attack_run_spec_id']}: missing paired clean message")
-                continue
-            clean_state = trace_category(clean_message, reference=reference, target=target)
-            if clean_state == "target":
+            origin = target_state_origin(sender, message_round)
+            if origin == "natural":
                 natural_target_count += 1
-            else:
+            elif origin == "relayed":
                 relayed_target_count += 1
+            else:
+                errors.append(f"{pair['attack_run_spec_id']}: invalid normal target origin {origin}")
         if direct_target_count > 1:
             errors.append(f"{pair['attack_run_spec_id']}: multiple direct attacker messages")
         active_origins = sum(
@@ -249,28 +296,18 @@ def extract_provenance_updates(
             for record in read_jsonl(root / "batch" / "inputs" / "tasks.jsonl")
         }
         trace_root = root / "batch" / "traces"
-        clean_cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
         for pair in read_jsonl(root / "analysis-v1" / "paired_attacks.jsonl"):
             if max_pairs is not None and pair_count >= max_pairs:
                 stop = True
                 break
             attack_path = trace_root / f"{pair['attack_run_spec_id']}.json"
-            clean_id = str(pair["clean_run_spec_id"])
-            clean_path = trace_root / f"{clean_id}.json"
-            if not attack_path.exists() or not clean_path.exists():
+            if not attack_path.exists():
                 errors.append(f"missing trace {attack_path}")
                 continue
-            if clean_id not in clean_cache:
-                clean_cache[clean_id] = read_json(clean_path)
-                if len(clean_cache) > 32:
-                    clean_cache.popitem(last=False)
-            else:
-                clean_cache.move_to_end(clean_id)
             extracted, pair_errors = provenance_trace_rows(
                 pair=pair,
                 graph=graphs[str(pair["graph_id"])],
                 task=tasks[str(pair["task_id"])],
-                clean_stored=clean_cache[clean_id],
                 attack_stored=read_json(attack_path),
                 stratum=stratum,
             )

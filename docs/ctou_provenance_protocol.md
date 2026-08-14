@@ -28,16 +28,22 @@ All definitions are computed from the actual synchronous messages listed in each
 For every incoming `T` message:
 
 - `direct`: sender is the attacker;
-- `relayed`: sender is a normal node currently emitting the target answer, while the
-  paired clean trace for the same sender and round does not emit the target answer;
-- `natural`: sender is a normal node and the paired clean trace emits the same target
-  answer, so the message cannot be attributed to attack propagation.
+- `relayed`: sender is a normal node whose target state descends temporally from a
+  direct or already-relayed target message in the same attack trace;
+- `natural`: sender emitted the target at Round 0, or first entered the target state
+  without receiving an attacker-descended target message.
+
+The target-state lineage is computed recursively. A normal node that remains in `T`
+inherits its previous origin; a normal node that newly changes into `T` becomes
+`relayed` only if it received a direct or relayed `T` in that update. This deliberately
+uses no paired-clean output, because Round 0 was independently regenerated across
+conditions in this pilot.
 
 At the receiver-update level:
 
 - `direct_only`: all incoming `T` messages are direct;
 - `relayed_only`: all incoming `T` messages are induced relays;
-- `natural_only`: all incoming `T` messages also occur in the paired clean run;
+- `natural_only`: all incoming `T` messages have natural target lineage;
 - `mixed`: more than one provenance type is present.
 
 The primary contrast is pure `direct_only` versus pure `relayed_only`, conditional on

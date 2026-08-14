@@ -51,14 +51,11 @@ def test_direct_target_origin_is_reconstructed_from_actual_sender() -> None:
     turns = [_turn(node, 0, "target_error" if node == 0 else "correct", []) for node in range(4)]
     turns.append(_turn(3, 1, "correct", ["m0-n0", "m0-n1", "m0-n2"]))
     stored = {"trace": {"turns": turns, "messages": [_message(node, 0, "target_error" if node == 0 else "correct") for node in range(4)]}}
-    clean_messages = [_message(node, 0, "correct") for node in range(4)]
-    clean_stored = {"trace": {"turns": turns, "messages": clean_messages}}
 
     rows, errors = module.provenance_trace_rows(
         pair=_pair(),
         graph=graph,
         task={"reference_answer": "5"},
-        clean_stored=clean_stored,
         attack_stored=stored,
         stratum="n4-m3",
     )
@@ -109,15 +106,6 @@ def test_common_parent_of_correct_messages_is_detected() -> None:
         pair=_pair(),
         graph=graph,
         task={"reference_answer": "5"},
-        clean_stored={
-            "trace": {
-                "turns": turns,
-                "messages": [
-                    {**message, "answer_state": "correct"}
-                    for message in messages
-                ],
-            }
-        },
         attack_stored={"trace": {"turns": turns, "messages": messages}},
         stratum="n5-m5",
     )
@@ -131,7 +119,7 @@ def test_common_parent_of_correct_messages_is_detected() -> None:
     assert row["recursive_correct_overlap"] == 1
 
 
-def test_normal_target_also_present_in_clean_trace_is_not_called_relayed() -> None:
+def test_normal_round_zero_target_is_not_called_relayed() -> None:
     graph = {
         "node_count": 4,
         "readout_node": 3,
@@ -141,13 +129,11 @@ def test_normal_target_also_present_in_clean_trace_is_not_called_relayed() -> No
     attack_turns = [_turn(node, 0, "target_error" if node in (0, 1) else "correct", []) for node in range(4)]
     attack_turns.append(_turn(3, 1, "correct", ["m0-n1"]))
     attack_messages = [_message(node, 0, "target_error" if node in (0, 1) else "correct") for node in range(4)]
-    clean_messages = [_message(node, 0, "target_error" if node == 1 else "correct") for node in range(4)]
 
     rows, errors = module.provenance_trace_rows(
         pair=_pair(),
         graph=graph,
         task={"reference_answer": "5"},
-        clean_stored={"trace": {"turns": attack_turns, "messages": clean_messages}},
         attack_stored={"trace": {"turns": attack_turns, "messages": attack_messages}},
         stratum="n4-m1",
     )
@@ -156,6 +142,45 @@ def test_normal_target_also_present_in_clean_trace_is_not_called_relayed() -> No
     assert rows[0]["target_origin"] == "natural_only"
     assert rows[0]["natural_target_count"] == 1
     assert rows[0]["relayed_target_count"] == 0
+
+
+def test_new_target_state_after_direct_exposure_is_relayed() -> None:
+    graph = {
+        "node_count": 4,
+        "readout_node": 3,
+        "max_rounds": 2,
+        "edges": [{"source": 0, "target": 1}, {"source": 1, "target": 3}],
+    }
+    turns = [
+        _turn(0, 0, "target_error", []),
+        _turn(1, 0, "correct", []),
+        _turn(2, 0, "correct", []),
+        _turn(3, 0, "correct", []),
+        _turn(1, 1, "target_error", ["m0-n0"]),
+        _turn(3, 1, "correct", ["m0-n1"]),
+        _turn(3, 2, "target_error", ["m1-n1"]),
+    ]
+    messages = [
+        _message(0, 0, "target_error"),
+        _message(1, 0, "correct"),
+        _message(2, 0, "correct"),
+        _message(3, 0, "correct"),
+        _message(1, 1, "target_error"),
+        _message(3, 1, "correct"),
+    ]
+
+    rows, errors = module.provenance_trace_rows(
+        pair=_pair(),
+        graph=graph,
+        task={"reference_answer": "5"},
+        attack_stored={"trace": {"turns": turns, "messages": messages}},
+        stratum="n4-m2",
+    )
+
+    assert not errors
+    row = next(item for item in rows if item["receiver_node"] == 3 and item["round_index"] == 2)
+    assert row["target_origin"] == "relayed_only"
+    assert row["relayed_target_count"] == 1
 
 
 def test_common_support_standardization_does_not_mix_ctou_cells() -> None:
