@@ -454,7 +454,10 @@ def main() -> None:
     for descriptor in status["strata"]:
         stratum = str(descriptor["key"])
         root = args.run_root / "strata" / stratum
-        graph_records = read_jsonl(root / "selected_graphs.jsonl")
+        graph_path = root / "selected_graphs.jsonl"
+        if not graph_path.exists():
+            graph_path = root / "batch" / "inputs" / "graphs.jsonl"
+        graph_records = read_jsonl(graph_path)
         task_values = [
             str(item["task_id"])
             for item in read_jsonl(root / "batch/inputs/tasks.jsonl")

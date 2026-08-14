@@ -358,7 +358,10 @@ def extract_updates(
     for descriptor in status["strata"]:
         stratum = str(descriptor["key"])
         root = run_root / "strata" / stratum
-        graphs = {str(x["graph_id"]): x for x in read_jsonl(root / "selected_graphs.jsonl")}
+        graph_path = root / "selected_graphs.jsonl"
+        if not graph_path.exists():
+            graph_path = root / "batch" / "inputs" / "graphs.jsonl"
+        graphs = {str(x["graph_id"]): x for x in read_jsonl(graph_path)}
         tasks = {str(x["task_id"]): x for x in read_jsonl(root / "batch/inputs/tasks.jsonl")}
         trace_root = root / "batch/traces"
         clean_cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
