@@ -28,6 +28,12 @@ MODEL_NAMES = (
     "all_content_free_hgb",
 )
 STATE_NAMES = ("correct", "target", "other", "unparsed")
+TRACE_STATE_NAMES = {
+    "correct": "correct",
+    "target_error": "target",
+    "other_error": "other",
+    "unparsed": "unparsed",
+}
 
 DEGROOT_FEATURES = ("degroot_receiver_target_mass",)
 TARGET_FEATURES = (
@@ -117,6 +123,14 @@ def category(value: Any, *, reference: str, target: str) -> str:
     return "other"
 
 
+def trace_category(record: dict[str, Any], *, reference: str, target: str) -> str:
+    """Use execution-time oracle state, falling back for legacy traces."""
+    answer_state = record.get("answer_state")
+    if answer_state in TRACE_STATE_NAMES:
+        return TRACE_STATE_NAMES[str(answer_state)]
+    return category(record.get("parsed_answer"), reference=reference, target=target)
+
+
 def graph_maps(graph: dict[str, Any]) -> tuple[list[list[int]], list[list[int]]]:
     n = int(graph["node_count"])
     incoming = [[] for _ in range(n)]
@@ -155,12 +169,7 @@ def degroot_target_masses(
     values = np.array(
         [
             float(
-                category(
-                    round_zero[node]["parsed_answer"],
-                    reference="__never__",
-                    target=target,
-                )
-                == "target"
+                trace_category(round_zero[node], reference="__never__", target=target) == "target"
             )
             for node in range(n)
         ],
@@ -216,14 +225,10 @@ def paired_trace_rows(
     if clean_turns.keys() != attack_turns.keys():
         errors.append(f"{pair['attack_run_spec_id']}: paired schedule mismatch")
         return [], errors
-    clean_messages = {
-        (int(x["sender"]), int(x["round_index"])): x for x in clean["messages"]
-    }
+    clean_messages = {(int(x["sender"]), int(x["round_index"])): x for x in clean["messages"]}
     attack_messages_by_id = {x["message_id"]: x for x in attack["messages"]}
     round_zero = {node: attack_turns[(node, 0)] for node in range(n)}
-    degroot = degroot_target_masses(
-        graph, round_zero, attack_node=attack_node, target=target
-    )
+    degroot = degroot_target_masses(graph, round_zero, attack_node=attack_node, target=target)
     attacker_to_readout = shortest_distance(outgoing, attack_node, readout)
     rows: list[dict[str, Any]] = []
 
@@ -253,12 +258,10 @@ def paired_trace_rows(
             incoming_attack.append(message)
             incoming_clean.append(clean_message)
         attack_categories = [
-            category(x["parsed_answer"], reference=reference, target=target)
-            for x in incoming_attack
+            trace_category(x, reference=reference, target=target) for x in incoming_attack
         ]
         clean_categories = [
-            category(x["parsed_answer"], reference=reference, target=target)
-            for x in incoming_clean
+            trace_category(x, reference=reference, target=target) for x in incoming_clean
         ]
         incoming_count = len(attack_categories)
         state_counts = Counter(attack_categories)
@@ -274,18 +277,10 @@ def paired_trace_rows(
             parsed_counts and list(parsed_counts.values()).count(plurality) == 1
         )
 
-        current_attack_state = category(
-            attack_turn["parsed_answer"], reference=reference, target=target
-        )
-        current_clean_state = category(
-            clean_turn["parsed_answer"], reference=reference, target=target
-        )
-        previous_attack_state = category(
-            previous_attack["parsed_answer"], reference=reference, target=target
-        )
-        previous_clean_state = category(
-            previous_clean["parsed_answer"], reference=reference, target=target
-        )
+        current_attack_state = trace_category(attack_turn, reference=reference, target=target)
+        current_clean_state = trace_category(clean_turn, reference=reference, target=target)
+        previous_attack_state = trace_category(previous_attack, reference=reference, target=target)
+        previous_clean_state = trace_category(previous_clean, reference=reference, target=target)
         now_attack_target = current_attack_state == "target"
         now_clean_target = current_clean_state == "target"
         previous_attack_target = previous_attack_state == "target"
@@ -330,9 +325,7 @@ def paired_trace_rows(
             "attacker_distance_to_readout": attacker_to_readout,
             "attacker_distance_to_receiver": attacker_receiver_distance,
             "attacker_directly_incoming": float(attack_node in incoming[receiver]),
-            "graph_depth": max(
-                shortest_distance(outgoing, node, readout) for node in range(n)
-            ),
+            "graph_depth": max(shortest_distance(outgoing, node, readout) for node in range(n)),
         }
         for name in STATE_NAMES:
             row[f"receiver_previous_{name}"] = float(previous_attack_state == name)
@@ -480,20 +473,25 @@ def crossed_predictions(assignments: pd.DataFrame) -> tuple[pd.DataFrame, pd.Dat
     outputs: list[pd.DataFrame] = []
     audits: list[dict[str, Any]] = []
     identifiers = [
-        "stratum", "task_id", "graph_id", "attack_node", "receiver_node",
-        "round_index", "graph_fold", "task_fold", "outcome",
+        "stratum",
+        "task_id",
+        "graph_id",
+        "attack_node",
+        "receiver_node",
+        "round_index",
+        "graph_fold",
+        "task_fold",
+        "outcome",
     ]
     for subset in SUBSETS:
         selected = subset_frame(assignments, subset)
         for graph_fold in range(GRAPH_FOLDS):
             for task_fold in range(TASK_FOLDS):
                 test = selected.loc[
-                    (selected["graph_fold"] == graph_fold)
-                    & (selected["task_fold"] == task_fold)
+                    (selected["graph_fold"] == graph_fold) & (selected["task_fold"] == task_fold)
                 ]
                 train = selected.loc[
-                    (selected["graph_fold"] != graph_fold)
-                    & (selected["task_fold"] != task_fold)
+                    (selected["graph_fold"] != graph_fold) & (selected["task_fold"] != task_fold)
                 ]
                 if test.empty:
                     continue
@@ -715,12 +713,8 @@ def main() -> None:
         "seed": args.seed,
         "integrity_passed": audit["passed"],
     }
-    (output / "manifest.json").write_text(
-        json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
-    )
-    (output / "report.md").write_text(
-        render_report(audit, metrics, comparisons), encoding="utf-8"
-    )
+    (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    (output / "report.md").write_text(render_report(audit, metrics, comparisons), encoding="utf-8")
     print(json.dumps(manifest, indent=2))
 
 

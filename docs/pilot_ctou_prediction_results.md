@@ -1,5 +1,7 @@
 # CTQO/CTOU 状态转移预测对比（Llama-3.1-8B dense-50 pilot）
 
+> **Superseded by corrected v2.** 后续 recursive-rollout 完整性审计发现，v1 分析层没有使用 trace 中执行时 Oracle 写入的 `answer_state`，因而把 `2.2`/`11/5` 等数值等价形式错误地拆成 `T` 与 `O`。该问题影响 4/50 个任务、2,964/37,050 个攻击 endpoint。以下数值保留用于审计，不应继续作为正式结果引用；修正后的一步预测和递归结果见 [pilot_ctou_recursive_rollout_results.md](pilot_ctou_recursive_rollout_results.md)。
+
 ## 1. 目的
 
 检验节点的下一轮状态是否可由一个不读取文本、任务身份和图结构的局部状态模型预测，并与经典等权 DeGroot 更新作直接对比。

@@ -9,6 +9,15 @@ sys.path.insert(0, str(SCRIPT_DIR))
 module = importlib.import_module("analyze_node_round_adoption")
 
 
+def test_trace_category_prefers_execution_oracle_over_numeric_surface_form() -> None:
+    record = {
+        "answer_state": "target_error",
+        "parsed_answer": "11/5",
+    }
+
+    assert module.trace_category(record, reference="2", target="2.2") == "target"
+
+
 def _turn(node: int, round_index: int, answer: str, incoming: list[str]) -> dict:
     return {
         "node_id": node,
@@ -72,9 +81,7 @@ def test_degroot_target_mass_uses_equal_self_and_incoming_weights() -> None:
         2: {"parsed_answer": "5"},
     }
 
-    masses = module.degroot_target_masses(
-        graph, round_zero, attack_node=0, target="6"
-    )
+    masses = module.degroot_target_masses(graph, round_zero, attack_node=0, target="6")
 
     assert masses[(1, 1)] == pytest.approx(0.5)
     assert masses[(2, 1)] == 0.0
