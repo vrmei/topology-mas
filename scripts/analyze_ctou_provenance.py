@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from itertools import combinations
 from pathlib import Path
 from typing import Any, Iterable
@@ -77,12 +77,14 @@ def provenance_trace_rows(
     pair: dict[str, Any],
     graph: dict[str, Any],
     task: dict[str, Any],
+    clean_stored: dict[str, Any],
     attack_stored: dict[str, Any],
     stratum: str,
 ) -> tuple[list[dict[str, Any]], list[str]]:
     """Reconstruct exact CTOU counts and source ancestry from one attack trace."""
     errors: list[str] = []
     trace = attack_stored["trace"]
+    clean_trace = clean_stored["trace"]
     attack_node = int(pair["attack_node"])
     target = str(pair["target_answer"])
     reference = str(task["reference_answer"])
@@ -95,6 +97,10 @@ def provenance_trace_rows(
         for turn in trace["turns"]
     }
     messages = {str(message["message_id"]): message for message in trace["messages"]}
+    clean_messages = {
+        (int(message["sender"]), int(message["round_index"])): message
+        for message in clean_trace["messages"]
+    }
     lineage = _lineage_builder(turns, messages)
     rows: list[dict[str, Any]] = []
 
@@ -132,16 +138,38 @@ def provenance_trace_rows(
             for message, state in zip(incoming_messages, categories)
             if state == "correct"
         ]
-        direct_target_count = sum(int(message["sender"]) == attack_node for message in target_messages)
-        relayed_target_count = len(target_messages) - direct_target_count
+        direct_target_count = 0
+        relayed_target_count = 0
+        natural_target_count = 0
+        for message in target_messages:
+            sender = int(message["sender"])
+            message_round = int(message["round_index"])
+            if sender == attack_node:
+                direct_target_count += 1
+                continue
+            clean_message = clean_messages.get((sender, message_round))
+            if clean_message is None:
+                errors.append(f"{pair['attack_run_spec_id']}: missing paired clean message")
+                continue
+            clean_state = trace_category(clean_message, reference=reference, target=target)
+            if clean_state == "target":
+                natural_target_count += 1
+            else:
+                relayed_target_count += 1
         if direct_target_count > 1:
             errors.append(f"{pair['attack_run_spec_id']}: multiple direct attacker messages")
-        if direct_target_count and relayed_target_count:
+        active_origins = sum(
+            value > 0
+            for value in (direct_target_count, relayed_target_count, natural_target_count)
+        )
+        if active_origins > 1:
             target_origin = "mixed"
         elif direct_target_count:
             target_origin = "direct_only"
         elif relayed_target_count:
             target_origin = "relayed_only"
+        elif natural_target_count:
+            target_origin = "natural_only"
         else:
             target_origin = "no_target"
 
@@ -186,6 +214,7 @@ def provenance_trace_rows(
                 "incoming_unparsed_count": counts["unparsed"],
                 "direct_target_count": direct_target_count,
                 "relayed_target_count": relayed_target_count,
+                "natural_target_count": natural_target_count,
                 "has_direct_target": int(direct_target_count > 0),
                 "target_origin": target_origin,
                 "correct_sender_count": len(correct_messages),
@@ -220,18 +249,28 @@ def extract_provenance_updates(
             for record in read_jsonl(root / "batch" / "inputs" / "tasks.jsonl")
         }
         trace_root = root / "batch" / "traces"
+        clean_cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
         for pair in read_jsonl(root / "analysis-v1" / "paired_attacks.jsonl"):
             if max_pairs is not None and pair_count >= max_pairs:
                 stop = True
                 break
             attack_path = trace_root / f"{pair['attack_run_spec_id']}.json"
-            if not attack_path.exists():
+            clean_id = str(pair["clean_run_spec_id"])
+            clean_path = trace_root / f"{clean_id}.json"
+            if not attack_path.exists() or not clean_path.exists():
                 errors.append(f"missing trace {attack_path}")
                 continue
+            if clean_id not in clean_cache:
+                clean_cache[clean_id] = read_json(clean_path)
+                if len(clean_cache) > 32:
+                    clean_cache.popitem(last=False)
+            else:
+                clean_cache.move_to_end(clean_id)
             extracted, pair_errors = provenance_trace_rows(
                 pair=pair,
                 graph=graphs[str(pair["graph_id"])],
                 task=tasks[str(pair["task_id"])],
+                clean_stored=clean_cache[clean_id],
                 attack_stored=read_json(attack_path),
                 stratum=stratum,
             )
@@ -488,11 +527,9 @@ def main() -> None:
     primary = frame.loc[
         (frame["previous_state"] == "correct")
         & (frame["incoming_target_count"] >= 1)
-        & ((frame["has_direct_target"] == 1) | (frame["target_origin"] == "relayed_only"))
+        & frame["target_origin"].isin(["direct_only", "relayed_only"])
     ].copy()
-    primary["target_comparison_group"] = np.where(
-        primary["has_direct_target"] == 1, "has_direct", "relayed_only"
-    )
+    primary["target_comparison_group"] = primary["target_origin"]
     target_rates = cell_rates(
         primary,
         group_column="target_comparison_group",
@@ -503,7 +540,7 @@ def main() -> None:
         primary,
         comparison="target_direct_vs_relayed",
         group_column="target_comparison_group",
-        group_a="has_direct",
+        group_a="direct_only",
         group_b="relayed_only",
         outcome_column="next_is_target",
         scopes=("all", "internal", "readout"),
@@ -563,6 +600,7 @@ def main() -> None:
             graphs=("graph_id", "nunique"),
             direct_target_updates=("has_direct_target", "sum"),
             relayed_only_updates=("target_origin", lambda values: int((values == "relayed_only").sum())),
+            natural_only_updates=("target_origin", lambda values: int((values == "natural_only").sum())),
             immediate_overlap_updates=("immediate_correct_overlap", "sum"),
             recursive_overlap_updates=("recursive_correct_overlap", "sum"),
         )

@@ -28,15 +28,22 @@ All definitions are computed from the actual synchronous messages listed in each
 For every incoming `T` message:
 
 - `direct`: sender is the attacker;
-- `relayed`: sender is a normal node currently emitting the target answer.
+- `relayed`: sender is a normal node currently emitting the target answer, while the
+  paired clean trace for the same sender and round does not emit the target answer;
+- `natural`: sender is a normal node and the paired clean trace emits the same target
+  answer, so the message cannot be attributed to attack propagation.
 
 At the receiver-update level:
 
-- `direct_only`: at least one direct `T` and no relayed `T`;
-- `relayed_only`: at least one relayed `T` and no direct `T`;
-- `mixed`: both are present.
+- `direct_only`: all incoming `T` messages are direct;
+- `relayed_only`: all incoming `T` messages are induced relays;
+- `natural_only`: all incoming `T` messages also occur in the paired clean run;
+- `mixed`: more than one provenance type is present.
 
-The primary contrast is `has_direct_T` versus `relayed_only`, conditional on the exact CTOU cell. Because the attacker can send at most one direct message, exact `#T` remains controlled.
+The primary contrast is pure `direct_only` versus pure `relayed_only`, conditional on
+the exact CTOU cell. Natural and mixed target inputs are excluded. Because the attacker
+can send at most one direct message, common support automatically compares one direct
+target message with one induced relayed target message.
 
 ### Correct-source overlap
 
