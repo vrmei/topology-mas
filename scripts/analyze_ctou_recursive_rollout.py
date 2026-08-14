@@ -289,7 +289,7 @@ def particle_rollout_from_particles(
     *,
     graph: dict[str, Any],
     initial_particles: np.ndarray,
-    attack_node: int,
+    attack_node: int | None,
     model: str,
     lookup: np.ndarray | None,
     seed: int,
@@ -307,14 +307,15 @@ def particle_rollout_from_particles(
     if len(states) == 0:
         raise ValueError("initial_particles must not be empty")
     particles = len(states)
-    states[:, attack_node] = STATE_INDEX["target"]
+    if attack_node is not None:
+        states[:, attack_node] = STATE_INDEX["target"]
     rng = np.random.default_rng(seed)
     for round_index in range(1, horizon + 1):
         updated = states.copy()
         for node in range(n):
             if round_index + distances[node] > horizon:
                 continue
-            if node == attack_node:
+            if attack_node is not None and node == attack_node:
                 updated[:, node] = STATE_INDEX["target"]
                 continue
             if model == "persistence":
@@ -369,7 +370,7 @@ def mean_field_rollout(
     *,
     graph: dict[str, Any],
     initial_states: tuple[int, ...],
-    attack_node: int,
+    attack_node: int | None,
     model: str,
     lookup: np.ndarray | None,
 ) -> np.ndarray:
@@ -384,7 +385,7 @@ def mean_field_rollout(
         for node in range(n):
             if round_index + distances[node] > horizon:
                 continue
-            if node == attack_node:
+            if attack_node is not None and node == attack_node:
                 updated[node] = np.eye(len(STATES))[STATE_INDEX["target"]]
                 continue
             if model == "persistence":

@@ -1,0 +1,53 @@
+{
+  "analysis_version": "ctou-clean-utility-v1",
+  "run_root": "/root/autodl-tmp/topology_MAS_release_2763398_statebench/runs/llama31-8b-dense50-v1",
+  "states": [
+    "correct",
+    "target",
+    "other",
+    "unparsed"
+  ],
+  "laws": [
+    "clean_specific",
+    "attack_specific",
+    "pooled_balanced"
+  ],
+  "primary_surrogate": "pooled_balanced + correlated_empirical",
+  "particles": 2048,
+  "folds": 5,
+  "bootstrap_replicates": 10000,
+  "seed": 20260817,
+  "clean_integrity": {
+    "passed": true,
+    "errors": [],
+    "clean_traces": 6600,
+    "clean_updates": 76350,
+    "tasks": 50,
+    "graphs": 132,
+    "strata": 28
+  },
+  "attack_update_integrity": {
+    "passed": true,
+    "updates": 394800,
+    "tasks": 50,
+    "graphs": 132,
+    "paired_conditions": 37050,
+    "strata": 28
+  },
+  "attack_case_integrity": {
+    "passed": true,
+    "errors": [],
+    "cases": 37050,
+    "tasks": 50,
+    "graphs": 132,
+    "strata": 28,
+    "unique_initial_patterns": 18522
+  },
+  "claim_limits": [
+    "similar endpoint performance does not prove identical clean and attack laws",
+    "shared-cell analysis controls exact categorical inputs but not message semantics",
+    "the pooled model uses condition-balanced weights and no condition feature",
+    "utility and robustness remain conditional on the current model/task/attack regime",
+    "the empirical initializer is distribution-conditioned, not task-conditioned"
+  ]
+}
