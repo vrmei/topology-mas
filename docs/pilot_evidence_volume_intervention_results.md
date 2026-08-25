@@ -117,6 +117,9 @@ evaluated by frozen cross-size rollout, especially n=10. A later controlled foll
 can remove the remaining classical confound by holding receiver self weight constant
 while peer evidence volume changes.
 
+The completed explicit previous-solution ablation and its revised interpretation are
+reported in `docs/pilot_evidence_volume_self_ablation_results.md`.
+
 ## Claim limits
 
 - Message count and total input-token volume changed together.

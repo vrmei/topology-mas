@@ -115,6 +115,41 @@ def task_scale_effects(frame: pd.DataFrame, outcome: str) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def task_conditional_scale_effects(frame: pd.DataFrame, outcome: str) -> pd.DataFrame:
+    """Diagnostic task-level effects after dropping post-treatment unparsed rows."""
+
+    grouped = (
+        frame.groupby(
+            ["task_id", "scenario", "ratio_id", "multiplier"],
+            observed=True,
+        )[outcome]
+        .mean()
+        .reset_index()
+    )
+    pivot = grouped.pivot(
+        index=["task_id", "scenario", "ratio_id"],
+        columns="multiplier",
+        values=outcome,
+    ).reset_index()
+    pivot = pivot.dropna(subset=[1, 2, 3]).copy()
+    rows: list[dict[str, Any]] = []
+    for high, low in CONTRASTS:
+        work = pivot.assign(effect=pivot[high] - pivot[low])
+        work["contrast"] = f"{high}x-{low}x"
+        rows.extend(
+            work[["task_id", "scenario", "ratio_id", "contrast", "effect"]].to_dict(
+                "records"
+            )
+        )
+        pooled = (
+            work.groupby(["task_id", "scenario"], observed=True).effect.mean().reset_index()
+        )
+        pooled["ratio_id"] = "pooled"
+        pooled["contrast"] = f"{high}x-{low}x"
+        rows.extend(pooled.to_dict("records"))
+    return pd.DataFrame(rows)
+
+
 def summarize_effects(
     effects: pd.DataFrame,
     *,
@@ -245,6 +280,11 @@ def main() -> None:
     all_rows = pd.concat([with_self, no_self], ignore_index=True)
     all_rows["is_primary_outcome"] = all_rows.is_primary_outcome.astype(float)
     all_rows["is_unparsed"] = all_rows.is_unparsed.astype(float)
+    all_rows["primary_given_parsed"] = np.where(
+        all_rows.is_unparsed.astype(bool),
+        np.nan,
+        all_rows.is_primary_outcome,
+    )
 
     summaries: list[pd.DataFrame] = []
     task_outputs: list[pd.DataFrame] = []
@@ -271,6 +311,33 @@ def main() -> None:
                 )
             )
             task_outputs.append(effects.assign(effect_name=label))
+
+    parsed_frames = {
+        "with_self": all_rows[all_rows.self_condition.eq("with_self")],
+        "no_self": all_rows[all_rows.self_condition.eq("no_self")],
+    }
+    parsed_with = task_conditional_scale_effects(
+        parsed_frames["with_self"], "primary_given_parsed"
+    )
+    parsed_no = task_conditional_scale_effects(
+        parsed_frames["no_self"], "primary_given_parsed"
+    )
+    parsed_interactions = interaction_effects(parsed_with, parsed_no)
+    for name, effects, seed_offset in (
+        ("with_self", parsed_with, 6000),
+        ("no_self", parsed_no, 7000),
+        ("with_minus_no_interaction", parsed_interactions, 8000),
+    ):
+        label = f"primary_given_parsed_post_treatment:{name}"
+        summaries.append(
+            summarize_effects(
+                effects,
+                effect_name=label,
+                bootstrap_replicates=args.bootstrap_replicates,
+                bootstrap_seed=args.bootstrap_seed + seed_offset,
+            )
+        )
+        task_outputs.append(effects.assign(effect_name=label))
 
     if incidental_ids:
         unit_keys = ["task_id", "scenario", "ratio_id", "replicate"]
@@ -349,6 +416,7 @@ def main() -> None:
             target_rate=("is_target", "mean"),
             other_rate=("is_other", "mean"),
             unparsed_rate=("is_unparsed", "mean"),
+            primary_rate_given_parsed=("primary_given_parsed", "mean"),
             mean_input_tokens=("input_tokens", "mean"),
             mean_output_tokens=("output_tokens", "mean"),
             mean_latency_ms=("latency_ms", "mean"),
@@ -372,6 +440,7 @@ def main() -> None:
             "the ablation changes both previous text and the minimal update instruction "
             "referring to it",
             "the no-self receiver can still reconstruct a latent belief from the task",
+            "parsed-only estimates condition on a post-treatment outcome and are diagnostic only",
         ],
     }
     atomic_json(output / "manifest.json", manifest)
