@@ -98,19 +98,14 @@ def main() -> None:
         token_lengths=token_lengths,
         skip_unsupported_tasks=True,
     )
-    token_task_ids = sorted({str(row["task_id"]) for row in token_plan})
-    if len(token_task_ids) < 30:
+    raw_token_task_ids = sorted({str(row["task_id"]) for row in token_plan})
+    if len(raw_token_task_ids) < 30:
         raise ValueError(
-            f"token-matched control supports only {len(token_task_ids)} tasks; need 30"
+            f"raw token matching supports only {len(raw_token_task_ids)} tasks; need 30"
         )
     plan = [*curve_plan, *token_plan]
-    expected = len(curve_plan) + len(token_task_ids) * 2 * 5
-    if len(plan) != expected:
-        raise ValueError(f"expected {expected} requests, built {len(plan)}")
 
     maximum_input = args.server_context - args.max_output_tokens
-    prompt_tokens: list[int] = []
-    kind_tokens: dict[str, list[int]] = defaultdict(list)
     for index, row in enumerate(plan, start=1):
         row["peer_message_tokens"] = sum(
             token_lengths[str(item)] for item in row["peer_stimulus_ids"]
@@ -134,15 +129,13 @@ def main() -> None:
             raise ValueError(
                 f"{row['request_id']} needs {count} input tokens; maximum is {maximum_input}"
             )
-        prompt_tokens.append(count)
-        kind_tokens[str(row["request_kind"])].append(count)
         if index % 1000 == 0:
             print(f"token-audited {index}/{len(plan)} requests", flush=True)
 
     pairs: dict[str, list[dict[str, object]]] = defaultdict(list)
     for row in token_plan:
         pairs[str(row["token_match_pair_id"])].append(row)
-    actual_pair_differences: list[int] = []
+    unsupported_rendered_tasks: set[str] = set()
     for pair_id, rows in pairs.items():
         if len(rows) != 2:
             raise ValueError(f"incomplete token pair: {pair_id}")
@@ -161,11 +154,44 @@ def main() -> None:
             ),
         )
         if difference > tolerance:
-            raise ValueError(
-                f"rendered token match failed for {pair_id}: difference={difference}, "
-                f"tolerance={tolerance:.1f}"
-            )
+            unsupported_rendered_tasks.add(str(long["task_id"]))
+
+    token_plan = [
+        row
+        for row in token_plan
+        if str(row["task_id"]) not in unsupported_rendered_tasks
+    ]
+    token_task_ids = sorted({str(row["task_id"]) for row in token_plan})
+    if len(token_task_ids) < 30:
+        raise ValueError(
+            f"rendered token matching supports only {len(token_task_ids)} tasks; need 30"
+        )
+    plan = [*curve_plan, *token_plan]
+    expected = len(curve_plan) + len(token_task_ids) * 2 * 5
+    if len(plan) != expected:
+        raise ValueError(f"expected {expected} requests, built {len(plan)}")
+
+    pairs = defaultdict(list)
+    for row in token_plan:
+        pairs[str(row["token_match_pair_id"])].append(row)
+    actual_pair_differences: list[int] = []
+    for pair_id, rows in pairs.items():
+        if len(rows) != 2:
+            raise ValueError(f"incomplete retained token pair: {pair_id}")
+        by_condition = {str(row["token_match_condition"]): row for row in rows}
+        long = by_condition["four_long"]
+        short = by_condition["eight_short"]
+        difference = abs(
+            int(long["estimated_input_tokens"]) - int(short["estimated_input_tokens"])
+        )
         actual_pair_differences.append(difference)
+
+    prompt_tokens = [int(row["estimated_input_tokens"]) for row in plan]
+    kind_tokens: dict[str, list[int]] = defaultdict(list)
+    for row in plan:
+        kind_tokens[str(row["request_kind"])].append(
+            int(row["estimated_input_tokens"])
+        )
 
     referenced_ids = {
         str(item)
@@ -235,6 +261,10 @@ def main() -> None:
         "task_ids": selected_tasks,
         "token_matched_task_count": len(token_task_ids),
         "token_matched_task_ids": token_task_ids,
+        "token_matched_raw_supported_task_count": len(raw_token_task_ids),
+        "token_matched_rendered_unsupported_task_ids": sorted(
+            unsupported_rendered_tasks
+        ),
         "response_curve_requests": len(curve_plan),
         "token_matched_requests": len(token_plan),
         "expected_requests": len(plan),

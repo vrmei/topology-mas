@@ -85,7 +85,9 @@ natural rationales are shorter than eight available rationales under every
 state-balanced selection. The token control therefore uses all qualifying
 tasks from the frozen 40-task curve population and requires at least 30 tasks;
 the qualifying IDs are frozen in the prepared manifest before generation.
-Exact prompt-token totals are recorded and audited.
+Qualification is applied again after rendering the complete chat template, so
+the tolerance concerns the input actually seen by the model rather than only
+raw rationale tokens. Exact prompt-token totals are recorded and audited.
 
 The generation seed is paired across the four- and eight-message conditions.
 Primary estimand:
