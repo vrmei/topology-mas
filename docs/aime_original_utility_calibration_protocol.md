@@ -32,7 +32,9 @@ identity follows the ordered list rendered by each contest page because its lega
   `/root/hf-system-cache/hub/models--Qwen--Qwen3-4B-Instruct-2507/snapshots/cdbee75f17c01a7cc42f958dc650907174af0554`.
 - Replicates: 10 independent generations per task (300 requests).
 - Sampling: temperature 0.7, top-p 0.8, top-k 20.
-- Maximum output: 3072 tokens.
+- Maximum output: fixed only after a no-communication probe confirms that the
+  length-stop rate is acceptably small. The initial 3072-token attempt is retained
+  as a failed measurement probe rather than treated as utility data.
 
 The Qwen sampling values follow the downloaded model's generation configuration and
 model card. This phase estimates Qwen's task distribution; it is not by itself a
@@ -45,6 +47,8 @@ Each `(task, replicate)` receives a deterministic generation seed. Replicates ne
 reuse generated text. Every successful request is stored atomically in its own file;
 an interrupted run resumes only missing requests. A failed request is logged without
 stopping unrelated requests and remains missing until a later resume succeeds.
+Any response with `finish_reason=length` is invalidated even if an intermediate
+`\boxed{}` expression happens to be parseable.
 
 ## Outputs
 

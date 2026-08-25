@@ -41,6 +41,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--temperature", type=float, required=True)
     parser.add_argument("--top-p", type=float, required=True)
     parser.add_argument("--top-k", type=int)
+    parser.add_argument("--min-p", type=float)
+    parser.add_argument("--presence-penalty", type=float)
     parser.add_argument("--max-output-tokens", type=int, default=3072)
     parser.add_argument("--max-workers", type=int, default=64)
     parser.add_argument("--timeout-seconds", type=float, default=900.0)
@@ -59,6 +61,8 @@ def main() -> None:
         "temperature": args.temperature,
         "top_p": args.top_p,
         "top_k": args.top_k,
+        "min_p": args.min_p,
+        "presence_penalty": args.presence_penalty,
         "max_output_tokens": args.max_output_tokens,
     }
     identity = {
@@ -130,17 +134,21 @@ def main() -> None:
                 temperature=args.temperature,
                 top_p=args.top_p,
                 top_k=args.top_k,
+                min_p=args.min_p,
+                presence_penalty=args.presence_penalty,
                 max_output_tokens=args.max_output_tokens,
             )
         )
         parsed = parse_aime_answer(completion.raw_text)
+        valid_answer = parsed is not None and completion.finish_reason != "length"
         result = {
             **row,
             "raw_output": completion.raw_text,
             "parsed_answer": parsed,
             "gold_answer": task.reference_answer,
-            "is_correct": parsed == task.reference_answer,
-            "is_parsed": parsed is not None,
+            "is_correct": valid_answer and parsed == task.reference_answer,
+            "is_parsed": valid_answer,
+            "raw_parser_found_answer": parsed is not None,
             "requested_model": args.model,
             "returned_model": completion.model_name,
             "finish_reason": completion.finish_reason,
