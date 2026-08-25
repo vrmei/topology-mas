@@ -68,8 +68,21 @@ def cell_summary(frame: pd.DataFrame, *, bootstraps: int) -> pd.DataFrame:
             other=("is_other", "mean"),
             unparsed=("is_unparsed", "mean"),
         )
+        parsed_primary = (
+            group.loc[~group.is_unparsed.astype(bool)]
+            .groupby("task_id")
+            .is_primary_outcome.mean()
+        )
+        task_rate["primary_parsed"] = task_rate.task_id.map(parsed_primary)
         row = dict(zip(keys, values, strict=True))
-        for metric in ("primary", "target", "correct", "other", "unparsed"):
+        for metric in (
+            "primary",
+            "primary_parsed",
+            "target",
+            "correct",
+            "other",
+            "unparsed",
+        ):
             mean, low, high = clustered_interval(
                 task_rate[metric], bootstraps=bootstraps, seed=SEED + index
             )

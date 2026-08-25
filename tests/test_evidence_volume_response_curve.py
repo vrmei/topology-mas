@@ -175,6 +175,7 @@ def test_analysis_builds_curve_and_token_contrasts() -> None:
     token = module.token_matched_contrast(frame, bootstraps=100)
     links = module.out_of_range_link_evaluation(frame)
     assert not cells.empty
+    assert (cells.primary_parsed_rate == cells.primary_rate).all()
     assert set(contrasts.contrast) >= {"adjacent", "high_tail", "pooled_high_tail"}
     assert token.iloc[0].effect == 0.5
     assert len(links) == 2 * 3 * 8
