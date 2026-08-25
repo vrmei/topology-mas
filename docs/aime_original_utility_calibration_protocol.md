@@ -32,14 +32,19 @@ identity follows the ordered list rendered by each contest page because its lega
   `/root/hf-system-cache/hub/models--Qwen--Qwen3-4B-Instruct-2507/snapshots/cdbee75f17c01a7cc42f958dc650907174af0554`.
 - Replicates: 10 independent generations per task (300 requests).
 - Sampling: temperature 0.7, top-p 0.8, top-k 20.
-- Maximum output: fixed only after a no-communication probe confirms that the
-  length-stop rate is acceptably small. The initial 3072-token attempt is retained
-  as a failed measurement probe rather than treated as utility data.
+- Maximum output: 16,384 tokens. The initial 3072-token attempt is retained as a
+  failed measurement probe rather than treated as utility data.
 
 The Qwen sampling values follow the downloaded model's generation configuration and
 model card. This phase estimates Qwen's task distribution; it is not by itself a
 controlled claim that Qwen is better or worse than another model with different
 recommended decoding.
+
+Two one-replicate probes were frozen before the 10-replicate run. At 16,384 tokens,
+adding `presence_penalty=1.0` reduced length stops but did not improve the total valid
+parse rate, so the formal run retains the base model-card sampling without a presence
+penalty. Length stops remain observable utility failures rather than being silently
+repaired with a different decoding condition.
 
 ## Execution and storage
 
