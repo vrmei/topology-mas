@@ -267,7 +267,7 @@ def _token_matched_pair(
     target_ids: Sequence[str],
     token_lengths: Mapping[str, int],
     seed_parts: Sequence[object],
-    trials: int = 50_000,
+    trials: int = 10_000,
 ) -> tuple[tuple[str, ...], tuple[str, ...], int, int]:
     rng = random.Random(stable_seed(*seed_parts))
     correct_ids = tuple(correct_ids)
@@ -288,7 +288,11 @@ def _token_matched_pair(
     best: tuple[float, tuple[str, ...], tuple[str, ...], int, int] | None = None
     for long_tokens, long_ids in long_candidates:
         center = bisect_left(short_sums, long_tokens)
-        for index in range(max(0, center - 20), min(len(short_candidates), center + 21)):
+        offsets = [0, *(value for step in range(1, 21) for value in (step, -step))]
+        for offset in offsets:
+            index = center + offset
+            if index < 0 or index >= len(short_candidates):
+                continue
             short_tokens, short_ids = short_candidates[index]
             if set(long_ids) & set(short_ids):
                 continue
@@ -299,6 +303,8 @@ def _token_matched_pair(
             candidate = (score, long_ids, short_ids, long_tokens, short_tokens)
             if best is None or candidate[0] < best[0]:
                 best = candidate
+                if difference <= 8:
+                    return long_ids, short_ids, long_tokens, short_tokens
     if best is None:
         raise ValueError("could not construct a token-matched message pair")
     _score, long_ids, short_ids, long_tokens, short_tokens = best
@@ -316,6 +322,7 @@ def build_token_matched_plan(
     task_ids: Sequence[str],
     pool_by_task_state: Mapping[tuple[str, str], Sequence[str]],
     token_lengths: Mapping[str, int],
+    skip_unsupported_tasks: bool = False,
 ) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     for task_id in task_ids:
@@ -325,18 +332,28 @@ def build_token_matched_plan(
         target_pool = tuple(
             pool_by_task_state[(task_id, AnswerState.TARGET_ERROR.value)]
         )
-        for replicate in range(TOKEN_MATCHED_REPLICATES):
-            long_ids, short_ids, long_tokens, short_tokens = _token_matched_pair(
-                correct_ids=correct_pool,
-                target_ids=target_pool,
-                token_lengths=token_lengths,
-                seed_parts=(
-                    EXPERIMENT_VERSION,
-                    task_id,
-                    "token_matched",
-                    replicate,
-                ),
-            )
+        task_rows: list[dict[str, object]] = []
+        try:
+            pairs = [
+                _token_matched_pair(
+                    correct_ids=correct_pool,
+                    target_ids=target_pool,
+                    token_lengths=token_lengths,
+                    seed_parts=(
+                        EXPERIMENT_VERSION,
+                        task_id,
+                        "token_matched",
+                        replicate,
+                    ),
+                )
+                for replicate in range(TOKEN_MATCHED_REPLICATES)
+            ]
+        except ValueError as error:
+            if skip_unsupported_tasks:
+                continue
+            raise ValueError(f"token matching failed for {task_id}: {error}") from error
+        for replicate, pair in enumerate(pairs):
+            long_ids, short_ids, long_tokens, short_tokens = pair
             generation_seed = stable_seed(
                 EXPERIMENT_VERSION,
                 task_id,
@@ -358,7 +375,7 @@ def build_token_matched_plan(
                     replicate,
                     label,
                 )
-                rows.append(
+                task_rows.append(
                     {
                         "request_id": request_id,
                         "request_kind": "token_matched",
@@ -386,4 +403,5 @@ def build_token_matched_plan(
                         ),
                     }
                 )
+        rows.extend(task_rows)
     return rows

@@ -96,10 +96,16 @@ def main() -> None:
         task_ids=selected_tasks,
         pool_by_task_state=pool_by_task_state,
         token_lengths=token_lengths,
+        skip_unsupported_tasks=True,
     )
+    token_task_ids = sorted({str(row["task_id"]) for row in token_plan})
+    if len(token_task_ids) < 30:
+        raise ValueError(
+            f"token-matched control supports only {len(token_task_ids)} tasks; need 30"
+        )
     plan = [*curve_plan, *token_plan]
-    expected = 13_880 if args.task_count == 40 else None
-    if expected is not None and len(plan) != expected:
+    expected = len(curve_plan) + len(token_task_ids) * 2 * 5
+    if len(plan) != expected:
         raise ValueError(f"expected {expected} requests, built {len(plan)}")
 
     maximum_input = args.server_context - args.max_output_tokens
@@ -227,6 +233,8 @@ def main() -> None:
         "task_selection_rule": "top 40 by min(T pool, O pool), stable task-ID tie break",
         "task_count": len(selected_tasks),
         "task_ids": selected_tasks,
+        "token_matched_task_count": len(token_task_ids),
+        "token_matched_task_ids": token_task_ids,
         "response_curve_requests": len(curve_plan),
         "token_matched_requests": len(token_plan),
         "expected_requests": len(plan),
@@ -255,6 +263,7 @@ def main() -> None:
                 "output": str(output),
                 "requests": len(plan),
                 "tasks": len(selected_tasks),
+                "token_matched_tasks": len(token_task_ids),
                 "token_audit": token_audit,
             },
             indent=2,

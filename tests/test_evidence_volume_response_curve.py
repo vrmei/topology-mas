@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import importlib.util
 from collections import defaultdict
+from pathlib import Path
+
+import pandas as pd
 
 from topology_mas.experiments.evidence_volume_curve import (
     ATTACK_DESIGNS,
@@ -9,6 +13,15 @@ from topology_mas.experiments.evidence_volume_curve import (
     select_supported_tasks,
 )
 from topology_mas.models import AnswerState
+
+
+def load_analysis_module():
+    path = Path(__file__).parents[1] / "scripts" / "analyze_evidence_volume_response_curve.py"
+    spec = importlib.util.spec_from_file_location("evidence_curve_analysis", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def make_pool(tasks: int = 41, per_state: int = 80):
@@ -97,3 +110,71 @@ def test_token_matched_plan_is_disjoint_and_within_tolerance() -> None:
         assert abs(long_tokens - short_tokens) <= tolerance
         assert long_tokens / 4 > short_tokens / 8
         assert long["generation_seed"] == short["generation_seed"]
+
+
+def test_analysis_builds_curve_and_token_contrasts() -> None:
+    module = load_analysis_module()
+    rows: list[dict[str, object]] = []
+    grids = {
+        "c80_t20": (5, 10, 15, 30, 50),
+        "c67_t33": (3, 6, 9, 30, 48),
+        "c50_t50": (2, 4, 6, 30, 50),
+    }
+    for task_index in range(4):
+        for mode in ("include", "omit"):
+            for ratio, degrees in grids.items():
+                for degree in degrees:
+                    outcome = int(degree >= 30 and task_index % 2 == 0)
+                    rows.append(
+                        {
+                            "request_kind": "response_curve",
+                            "scenario": "attack_adoption",
+                            "previous_mode": mode,
+                            "ratio_id": ratio,
+                            "task_id": f"task-{task_index}",
+                            "incoming_degree": degree,
+                            "token_match_condition": None,
+                            "is_primary_outcome": outcome,
+                            "is_target": outcome,
+                            "is_correct": 1 - outcome,
+                            "is_other": 0,
+                            "is_unparsed": 0,
+                            "input_tokens": 100 + degree,
+                            "output_tokens": 20,
+                            "latency_ms": 10,
+                            "peer_message_tokens": 80 + degree,
+                        }
+                    )
+        for condition, outcome, degree in (
+            ("four_long", 0, 4),
+            ("eight_short", task_index % 2, 8),
+        ):
+            rows.append(
+                {
+                    "request_kind": "token_matched",
+                    "scenario": "attack_adoption",
+                    "previous_mode": "omit",
+                    "ratio_id": "c50_t50_token_matched",
+                    "task_id": f"task-{task_index}",
+                    "incoming_degree": degree,
+                    "token_match_condition": condition,
+                    "is_primary_outcome": outcome,
+                    "is_target": outcome,
+                    "is_correct": 1 - outcome,
+                    "is_other": 0,
+                    "is_unparsed": 0,
+                    "input_tokens": 1000,
+                    "output_tokens": 20,
+                    "latency_ms": 10,
+                    "peer_message_tokens": 800,
+                }
+            )
+    frame = pd.DataFrame(rows)
+    cells = module.cell_summary(frame, bootstraps=100)
+    contrasts = module.degree_contrasts(frame, bootstraps=100)
+    token = module.token_matched_contrast(frame, bootstraps=100)
+    links = module.out_of_range_link_evaluation(frame)
+    assert not cells.empty
+    assert set(contrasts.contrast) >= {"adjacent", "high_tail", "pooled_high_tail"}
+    assert token.iloc[0].effect == 0.5
+    assert len(links) == 2 * 3 * 8

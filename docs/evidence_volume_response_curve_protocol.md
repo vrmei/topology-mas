@@ -75,25 +75,32 @@ This is a small attack-side, no-self factorial control at 50/50 C/T:
 - four long messages: `2C+2T`;
 - eight short messages: `4C+4T`.
 
-For each task and five replicates, the two peer sets are disjoint and selected
+For each supported task and five replicates, the two peer sets are disjoint and selected
 before generation. Selection uses the model tokenizer and minimizes the
 absolute difference in total peer-message tokens, subject to the eight-message
 condition having shorter mean messages. A pair passes only if total peer-token
 difference is at most 10% of their mean total or 96 tokens, whichever is more
-permissive. Exact prompt-token totals are recorded and audited.
+permissive. Some tasks cannot satisfy this constraint because four available
+natural rationales are shorter than eight available rationales under every
+state-balanced selection. The token control therefore uses all qualifying
+tasks from the frozen 40-task curve population and requires at least 30 tasks;
+the qualifying IDs are frozen in the prepared manifest before generation.
+Exact prompt-token totals are recorded and audited.
 
 The generation seed is paired across the four- and eight-message conditions.
 Primary estimand:
 
 `E[I(next=T, eight short) - I(next=T, four long)]`.
 
-Total token-matched requests: `40 x 5 x 2 = 400`.
+Total token-matched requests: `K x 5 x 2`, where `K>=30` is the frozen
+token-supported task count.
 
 ## Total budget
 
-The frozen request count is `13,880` one-step Llama calls. At the previous
-measured throughput of 7,500 calls in about 30.8 minutes, generation is
-expected to require roughly 57 minutes, plus model startup and token audits.
+The frozen request count is `13,480 + 10K` one-step Llama calls. For
+`30<=K<=40`, this is 13,780--13,880 calls. At the previous measured throughput
+of 7,500 calls in about 30.8 minutes, generation is expected to require roughly
+57 minutes, plus model startup and token audits.
 The run stops before generation if prompt audit, pairing, pool support, or
 request-count checks fail.
 
