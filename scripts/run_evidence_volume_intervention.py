@@ -44,11 +44,90 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-workers", type=int, default=96)
     parser.add_argument("--timeout-seconds", type=float, default=600.0)
     parser.add_argument("--max-attempts", type=int, default=3)
+    parser.add_argument("--tokenizer")
+    parser.add_argument("--server-context", type=int, default=8192)
+    parser.add_argument(
+        "--previous-mode",
+        choices=("include", "omit"),
+        default="include",
+        help="Whether the receiver sees its frozen previous solution.",
+    )
     return parser.parse_args()
 
 
 def result_path(output_dir: Path, request_id: str) -> Path:
     return output_dir / "results" / f"{request_id}.json"
+
+
+def audit_rendered_prompts(
+    *,
+    plan: list[dict[str, Any]],
+    tasks: dict[str, Any],
+    stimuli: dict[str, dict[str, Any]],
+    previous_mode: str,
+    tokenizer_path: str,
+    maximum_input_tokens: int,
+) -> dict[str, Any]:
+    from transformers import AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, local_files_only=True)
+    counts: list[int] = []
+    previous_heading_leaks = 0
+    previous_id_peer_leaks = 0
+    incidental_previous_text_matches: list[str] = []
+    for row in plan:
+        messages = render_request_messages(
+            task=tasks[str(row["task_id"])],
+            plan_row=row,
+            stimuli=stimuli,
+            include_previous=previous_mode == "include",
+        )
+        rendered = [{"role": item.role, "content": item.content} for item in messages]
+        count = len(
+            tokenizer.apply_chat_template(rendered, tokenize=True, add_generation_prompt=True)
+        )
+        counts.append(count)
+        if count > maximum_input_tokens:
+            raise ValueError(
+                f"{row['request_id']} needs {count} input tokens; "
+                f"maximum is {maximum_input_tokens}"
+            )
+        if previous_mode == "omit":
+            user_prompt = messages[-1].content
+            previous_id = str(row["previous_stimulus_id"])
+            previous_text = str(
+                stimuli[previous_id]["raw_text"]
+            )
+            old_update_section = (
+                "\n\nReconsider the problem using your own work and the candidate peer "
+                "reasoning.\n\nOUTPUT REQUIREMENT:"
+            )
+            if "YOUR_PREVIOUS_SOLUTION:\n" in user_prompt or old_update_section in user_prompt:
+                previous_heading_leaks += 1
+            if previous_id in row["peer_stimulus_ids"]:
+                previous_id_peer_leaks += 1
+            if previous_text in user_prompt:
+                incidental_previous_text_matches.append(str(row["request_id"]))
+    if previous_heading_leaks or previous_id_peer_leaks:
+        raise ValueError(
+            "previous solution leaked into no-self prompts: "
+            f"heading={previous_heading_leaks}, peer_id={previous_id_peer_leaks}"
+        )
+    ordered = sorted(counts)
+    return {
+        "requests": len(counts),
+        "previous_mode": previous_mode,
+        "previous_heading_leaks": previous_heading_leaks,
+        "previous_id_peer_leaks": previous_id_peer_leaks,
+        "incidental_previous_text_match_count": len(incidental_previous_text_matches),
+        "incidental_previous_text_match_request_ids": incidental_previous_text_matches,
+        "minimum": ordered[0],
+        "median": ordered[len(ordered) // 2],
+        "p95": ordered[int(0.95 * (len(ordered) - 1))],
+        "maximum": ordered[-1],
+        "maximum_allowed_input_tokens": maximum_input_tokens,
+        "tokenizer": tokenizer_path,
+    }
 
 
 def atomic_result(path: Path, payload: dict[str, Any]) -> None:
@@ -87,6 +166,16 @@ def main() -> None:
 
     output.mkdir(parents=True, exist_ok=True)
     (output / "results").mkdir(exist_ok=True)
+    if args.tokenizer:
+        prompt_audit = audit_rendered_prompts(
+            plan=plan,
+            tasks=tasks,
+            stimuli=stimuli,
+            previous_mode=args.previous_mode,
+            tokenizer_path=args.tokenizer,
+            maximum_input_tokens=args.server_context - args.max_output_tokens,
+        )
+        atomic_json(output / "prompt_audit.json", prompt_audit)
     status_path = output / "status.json"
     existing = json.loads(status_path.read_text(encoding="utf-8")) if status_path.exists() else None
     identity = {
@@ -95,6 +184,7 @@ def main() -> None:
         "stimuli_fingerprint": manifest["stimuli_fingerprint"],
         "model": args.model,
         "sampling": requested_sampling,
+        "previous_mode": args.previous_mode,
     }
     if existing and existing.get("identity") != identity:
         raise ValueError("existing output belongs to a different experiment")
@@ -136,7 +226,12 @@ def main() -> None:
 
     def execute(row: dict[str, Any]) -> dict[str, Any]:
         task = tasks[str(row["task_id"])]
-        messages = render_request_messages(task=task, plan_row=row, stimuli=stimuli)
+        messages = render_request_messages(
+            task=task,
+            plan_row=row,
+            stimuli=stimuli,
+            include_previous=args.previous_mode == "include",
+        )
         request = TextGenerationRequest(
             request_id=str(row["request_id"]),
             messages=messages,
@@ -167,6 +262,7 @@ def main() -> None:
             "latency_ms": generated.latency_ms,
             "model_name": generated.model_name,
             "finish_reason": generated.finish_reason,
+            "previous_mode": args.previous_mode,
             "completed_at": utc_now(),
         }
         atomic_result(result_path(output, str(row["request_id"])), result)

@@ -237,8 +237,13 @@ def render_request_messages(
     plan_row: Mapping[str, Any],
     stimuli: Mapping[str, Mapping[str, Any]],
     message_order_seed: int = 0,
+    include_previous: bool = True,
 ) -> tuple[ChatMessage, ...]:
-    previous = str(stimuli[str(plan_row["previous_stimulus_id"])]["raw_text"])
+    previous = (
+        str(stimuli[str(plan_row["previous_stimulus_id"])]["raw_text"])
+        if include_previous
+        else None
+    )
     records: list[MessageRecord] = []
     for stimulus_key in plan_row["peer_stimulus_ids"]:
         item = stimuli[str(stimulus_key)]
@@ -267,7 +272,12 @@ def render_request_messages(
             ),
         )
     )
-    return build_node_messages(task, previous_output=previous, incoming_messages=ordered)
+    return build_node_messages(
+        task,
+        previous_output=previous,
+        incoming_messages=ordered,
+        allow_peer_only_update=not include_previous,
+    )
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:

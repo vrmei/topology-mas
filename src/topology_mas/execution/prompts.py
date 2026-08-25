@@ -24,18 +24,23 @@ def build_node_messages(
     *,
     previous_output: str | None,
     incoming_messages: tuple[MessageRecord, ...],
+    allow_peer_only_update: bool = False,
 ) -> tuple[ChatMessage, ...]:
     """Build an anonymous peer view so numeric node labels do not become semantic roles."""
 
-    if previous_output is None and incoming_messages:
+    if previous_output is None and incoming_messages and not allow_peer_only_update:
         raise ValueError("round-zero prompts cannot contain incoming messages")
+    if allow_peer_only_update and (previous_output is not None or not incoming_messages):
+        raise ValueError("peer-only update requires peer messages and no previous output")
 
     sections = [f"PROBLEM:\n{task.prompt}"]
     if previous_output is not None:
         sections.append(f"YOUR_PREVIOUS_SOLUTION:\n{previous_output}")
     for message in incoming_messages:
         sections.append(f"<peer_message>\n{message.raw_text}\n</peer_message>")
-    if previous_output is None:
+    if allow_peer_only_update:
+        sections.append("Reconsider the problem using the candidate peer reasoning.")
+    elif previous_output is None:
         sections.append("Solve independently. No peer messages are available in this round.")
     else:
         sections.append(

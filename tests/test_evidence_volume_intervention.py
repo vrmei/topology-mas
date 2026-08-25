@@ -73,9 +73,47 @@ def test_rendered_prompt_has_no_source_identity_or_duplicate_peer_text() -> None
     assert len(set(row["peer_stimulus_ids"])) == row["incoming_degree"]
 
 
+def test_peer_only_prompt_removes_previous_solution_and_keeps_peers() -> None:
+    pool, stimuli = make_pool()
+    plan = build_request_plan(task_ids=["task-1"], pool_by_task_state=pool, replicates=1)
+    row = next(
+        item for item in plan if item["scenario"] == "attack_adoption" and item["multiplier"] == 1
+    )
+    task = TaskInstance(
+        task_id="task-1",
+        dataset="gsm8k",
+        split="test",
+        prompt="What is 1+1?",
+        reference_answer="2",
+        oracle_type="numeric",
+    )
+    messages = render_request_messages(
+        task=task,
+        plan_row=row,
+        stimuli=stimuli,
+        include_previous=False,
+    )
+    prompt = messages[-1].content
+    previous_text = stimuli[row["previous_stimulus_id"]]["raw_text"]
+    assert "YOUR_PREVIOUS_SOLUTION" not in prompt
+    assert previous_text not in prompt
+    assert prompt.count("<peer_message>") == row["incoming_degree"]
+    assert "your own work" not in prompt
+    assert "candidate peer reasoning" in prompt
+
+
 def load_analysis_module():
     path = Path(__file__).parents[1] / "scripts" / "analyze_evidence_volume_intervention.py"
     spec = importlib.util.spec_from_file_location("evidence_analysis", path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def load_self_ablation_analysis_module():
+    path = Path(__file__).parents[1] / "scripts" / "analyze_evidence_volume_self_ablation.py"
+    spec = importlib.util.spec_from_file_location("self_ablation_analysis", path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -115,3 +153,17 @@ def test_self_plus_peers_degroot_is_not_scale_invariant() -> None:
 
     # A peer-only equal-weight mixture remains exactly scale invariant.
     assert 1 / (1 + 1) == 3 / (3 + 3)
+
+
+def test_self_ablation_interaction_is_with_minus_no() -> None:
+    module = load_self_ablation_analysis_module()
+    keys = {
+        "task_id": ["t1", "t2"],
+        "scenario": ["attack_adoption", "attack_adoption"],
+        "ratio_id": ["pooled", "pooled"],
+        "contrast": ["3x-1x", "3x-1x"],
+    }
+    with_effects = pd.DataFrame({**keys, "effect": [0.3, 0.2]})
+    no_effects = pd.DataFrame({**keys, "effect": [0.1, 0.15]})
+    interaction = module.interaction_effects(with_effects, no_effects)
+    assert interaction.effect.round(8).tolist() == [0.2, 0.05]
