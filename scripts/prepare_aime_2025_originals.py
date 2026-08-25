@@ -140,7 +140,7 @@ def main() -> None:
     if len(records) != 30 or len(set(task_ids)) != 30:
         raise ValueError("expected exactly 30 unique original AIME tasks")
     jsonl = "".join(record.model_dump_json() + "\n" for record in records)
-    dataset_sha256 = hashlib.sha256(jsonl.encode("utf-8")).hexdigest()
+    dataset_lf_sha256 = hashlib.sha256(jsonl.encode("utf-8")).hexdigest()
     manifest = {
         "schema_version": 1,
         "dataset": "2025 AIME I + 2025 AIME II",
@@ -153,7 +153,9 @@ def main() -> None:
             "aimeProblemNumber metadata is non-unique."
         ),
         "upstream_aime_problem_numbers": upstream_problem_numbers,
-        "output_sha256": dataset_sha256,
+        # Hash the canonical LF serialization. Git may materialize CRLF on a
+        # Windows checkout without changing the logical dataset.
+        "output_lf_sha256": dataset_lf_sha256,
         "retrieved_at": datetime.now(timezone.utc).isoformat(),
         "normal_agent_visible_fields": ["problem"],
     }
@@ -168,7 +170,7 @@ def main() -> None:
                 "output": str(args.output.resolve()),
                 "manifest": str(args.manifest.resolve()),
                 "task_count": len(records),
-                "output_sha256": dataset_sha256,
+                "output_lf_sha256": dataset_lf_sha256,
             },
             indent=2,
         )

@@ -3,8 +3,8 @@
   "normal_agent_visible_fields": [
     "problem"
   ],
-  "output_sha256": "2ea54682e3139b7370b6c1dcd575f57de679426c29536a1f91e75b7acde8c388",
-  "retrieved_at": "2026-08-25T13:54:47.795047+00:00",
+  "output_lf_sha256": "2ea54682e3139b7370b6c1dcd575f57de679426c29536a1f91e75b7acde8c388",
+  "retrieved_at": "2026-08-25T14:03:06.422752+00:00",
   "schema_version": 1,
   "source_base_questions_sha256": {
     "2025_AIME_I": "4109c9a54af5b62d9c8289e196974adf3e115df8b746c7c2122a1c92467d7501",
