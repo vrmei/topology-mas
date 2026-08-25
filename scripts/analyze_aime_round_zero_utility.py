@@ -101,7 +101,9 @@ def summarize_run(
                 "replicates": expected_replicates,
                 "successes": successes,
                 "solve_rate": successes / expected_replicates,
+                "valid_answers": parsed,
                 "parsed_rate": parsed / expected_replicates,
+                "accuracy_on_valid_answer": successes / parsed if parsed else None,
                 "mean_output_tokens": fmean(
                     float(row["output_tokens"] or 0) for row in rows
                 ),
@@ -129,6 +131,10 @@ def summarize_run(
         "task_bootstrap_95_ci": [low, high],
         "between_task_sd": pstdev(rates),
         "parsed_rate": fmean(float(row["parsed_rate"]) for row in per_task),
+        "accuracy_on_valid_answer": (
+            sum(int(row["successes"]) for row in per_task)
+            / sum(int(row["valid_answers"]) for row in per_task)
+        ),
         "length_finish_rate": fmean(
             float(row["length_finish_rate"]) for row in per_task
         ),
@@ -258,6 +264,8 @@ def main() -> None:
                 f"- U0: `{summary['round_zero_utility']:.3f}` "
                 f"(task-bootstrap 95% CI `{low:.3f}`–`{high:.3f}`)",
                 f"- Parse rate: `{summary['parsed_rate']:.3f}`",
+                f"- Accuracy conditional on a valid answer: "
+                f"`{summary['accuracy_on_valid_answer']:.3f}`",
                 f"- Length-stop rate: `{summary['length_finish_rate']:.3f}`",
                 f"- Task bands: `{summary['task_band_counts']}`",
                 f"- Contest utility: `{summary['contest_utility']}`",
