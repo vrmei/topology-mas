@@ -1,0 +1,41 @@
+{
+  "accuracy_conditional_on_valid_answer": 0.5365853658536586,
+  "analysis_logic_commit": "e065a13",
+  "analysis_sha256": "7316361e4dab5928d8f6e83c3c174fc9603214b0d849b88f41c82c29618e0089",
+  "audit_version": "aime-original-round0-audit-v1",
+  "budgeted_utility": 0.44,
+  "correct_answers": 132,
+  "dataset_lf_sha256": "2ea54682e3139b7370b6c1dcd575f57de679426c29536a1f91e75b7acde8c388",
+  "failures": 0,
+  "finish_reasons": {
+    "length": 47,
+    "stop": 253
+  },
+  "gpu": "NVIDIA A800 80GB PCIe",
+  "gpu_hours": 0.5070788508333333,
+  "length_stops": 47,
+  "non_length_unparsed": 7,
+  "output_tokens_mean": 7210.8533333333335,
+  "output_tokens_median": 6652.0,
+  "output_tokens_p90": 16384.0,
+  "output_tokens_p95": 16384.0,
+  "output_tokens_total": 2163256,
+  "passed": true,
+  "protocol_commit": "22e79a3",
+  "remote_model_path": "/root/hf-system-cache/hub/models--Qwen--Qwen3-4B-Instruct-2507/snapshots/cdbee75f17c01a7cc42f958dc650907174af0554",
+  "replicates_per_task": 10,
+  "repository_branch": "codex/pilot-framework",
+  "request_count": 300,
+  "returned_models": [
+    "Qwen/Qwen3-4B-Instruct-2507"
+  ],
+  "runner_logic_commit": "c8886a3",
+  "runner_sha256": "b7362d76ddb49a2060a18fd94e020e733ad33f95aa9afa60707fcacade187acb",
+  "server_max_model_len": 32768,
+  "task_count": 30,
+  "unique_generation_seeds": 300,
+  "unique_request_ids": 300,
+  "valid_answers": 246,
+  "vllm_version": "0.10.1.1",
+  "wall_time_seconds": 1825.483863
+}
