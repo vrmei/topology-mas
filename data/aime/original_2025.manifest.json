@@ -1,0 +1,87 @@
+{
+  "dataset": "2025 AIME I + 2025 AIME II",
+  "normal_agent_visible_fields": [
+    "problem"
+  ],
+  "output_sha256": "2ea54682e3139b7370b6c1dcd575f57de679426c29536a1f91e75b7acde8c388",
+  "retrieved_at": "2026-08-25T13:54:47.795047+00:00",
+  "schema_version": 1,
+  "source_base_questions_sha256": {
+    "2025_AIME_I": "4109c9a54af5b62d9c8289e196974adf3e115df8b746c7c2122a1c92467d7501",
+    "2025_AIME_II": "de8e4a65c953c4c96646e137de40fa7e76fec517b9c6a9d9426f51d0459cc1d1"
+  },
+  "source_ordering_note": "Problem numbers use baseQuestions list order; upstream aimeProblemNumber metadata is non-unique.",
+  "source_urls": {
+    "2025_AIME_I": "https://live.poshenloh.com/past-contests/aime/2025I",
+    "2025_AIME_II": "https://live.poshenloh.com/past-contests/aime/2025II"
+  },
+  "task_count": 30,
+  "task_ids": [
+    "2025_AIME_I_P01",
+    "2025_AIME_I_P02",
+    "2025_AIME_I_P03",
+    "2025_AIME_I_P04",
+    "2025_AIME_I_P05",
+    "2025_AIME_I_P06",
+    "2025_AIME_I_P07",
+    "2025_AIME_I_P08",
+    "2025_AIME_I_P09",
+    "2025_AIME_I_P10",
+    "2025_AIME_I_P11",
+    "2025_AIME_I_P12",
+    "2025_AIME_I_P13",
+    "2025_AIME_I_P14",
+    "2025_AIME_I_P15",
+    "2025_AIME_II_P01",
+    "2025_AIME_II_P02",
+    "2025_AIME_II_P03",
+    "2025_AIME_II_P04",
+    "2025_AIME_II_P05",
+    "2025_AIME_II_P06",
+    "2025_AIME_II_P07",
+    "2025_AIME_II_P08",
+    "2025_AIME_II_P09",
+    "2025_AIME_II_P10",
+    "2025_AIME_II_P11",
+    "2025_AIME_II_P12",
+    "2025_AIME_II_P13",
+    "2025_AIME_II_P14",
+    "2025_AIME_II_P15"
+  ],
+  "upstream_aime_problem_numbers": {
+    "2025_AIME_I": [
+      1,
+      3,
+      2,
+      2,
+      5,
+      3,
+      7,
+      6,
+      8,
+      9,
+      9,
+      10,
+      12,
+      14,
+      13
+    ],
+    "2025_AIME_II": [
+      1,
+      1,
+      4,
+      3,
+      6,
+      6,
+      5,
+      9,
+      8,
+      7,
+      10,
+      11,
+      13,
+      12,
+      14
+    ]
+  }
+}
