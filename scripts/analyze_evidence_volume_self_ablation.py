@@ -371,6 +371,7 @@ def main() -> None:
             "message count and total input-token volume remain coupled",
             "the ablation changes both previous text and the minimal update instruction "
             "referring to it",
+            "the no-self receiver can still reconstruct a latent belief from the task",
         ],
     }
     atomic_json(output / "manifest.json", manifest)

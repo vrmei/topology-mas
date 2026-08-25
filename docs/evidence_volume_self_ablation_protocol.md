@@ -82,3 +82,6 @@ experiment does not assume they must share a mechanism.
 - Removing self evidence changes the decision context, so the interaction identifies
   the effect of this prompt component; it does not by itself reveal attention weights.
 - Message count and token volume remain coupled.
+- The receiver still sees the original task and is instructed to check calculations, so
+  it can reconstruct an implicit model belief. `No-self` means no explicit previous
+  solution text, not absence of latent self information.
