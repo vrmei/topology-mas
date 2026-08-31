@@ -1,0 +1,41 @@
+{
+  "analysis_version": "aime-original-round0-analysis-v1",
+  "bootstrap_samples": 10000,
+  "models": [
+    {
+      "accuracy_on_valid_answer": 0.6015625,
+      "between_task_sd": 0.385342560443158,
+      "contest_utility": {
+        "AIME_I": 0.5399999999999999,
+        "AIME_II": 0.48666666666666664
+      },
+      "label": "qwen_2026",
+      "length_finish_rate": 0.13333333333333333,
+      "model": "Qwen/Qwen3-4B-Instruct-2507",
+      "parsed_rate": 0.8533333333333334,
+      "replicates_per_task": 10,
+      "requests": 300,
+      "round_zero_utility": 0.5133333333333333,
+      "run_dir": "/root/autodl-tmp/aime_original_2026_qwen3_4b_round0_16k_formal_v1",
+      "sampling": {
+        "max_output_tokens": 16384,
+        "min_p": null,
+        "presence_penalty": null,
+        "temperature": 0.7,
+        "top_k": 20,
+        "top_p": 0.8
+      },
+      "task_band_counts": {
+        "ceiling_0.9_to_1.0": 9,
+        "floor_0_to_0.1": 9,
+        "informative_0.2_to_0.8": 12
+      },
+      "task_bootstrap_95_ci": [
+        0.37333333333333335,
+        0.65
+      ],
+      "tasks": 30
+    }
+  ],
+  "pairwise_model_contrasts": []
+}

@@ -1,0 +1,33 @@
+{
+  "artifact_version": "aime-original-round0-audit-v1",
+  "budgeted_utility": 0.5133333333333333,
+  "correct_requests": 154,
+  "dataset_lf_sha256": "7ab78113481d45b9d2f593cd8ba9c9c2d9ef68c99c41ae86a46551296e3a03b0",
+  "failed_requests": 0,
+  "finish_reason_counts": {
+    "length": 40,
+    "stop": 260
+  },
+  "input_tokens": 63960,
+  "mean_output_tokens": 6779.173333333333,
+  "median_output_tokens": 5708.5,
+  "model": "Qwen/Qwen3-4B-Instruct-2507",
+  "outcomes_sha256": "7b691223cedca086af77b2455f0208db92ea88b7cbba4927acd6deadfd1af9ca",
+  "output_tokens": 2033752,
+  "parsed_answers": 256,
+  "request_plan_sha256": "428a05aa6c74d6d0e161fb0ca5e874e2045074858b7874182c450a9fff3c13ba",
+  "requests": 300,
+  "sampling": {
+    "max_output_tokens": 16384,
+    "temperature": 0.7,
+    "top_k": 20,
+    "top_p": 0.8
+  },
+  "summary_sha256": "17de42a4bc3a751024b41e4a6011f7772729f6e429d83df9acb4516af64087d0",
+  "task_bootstrap_95_ci": [
+    0.37333333333333335,
+    0.65
+  ],
+  "tasks": 30,
+  "wall_minutes": 28.180863416666667
+}
