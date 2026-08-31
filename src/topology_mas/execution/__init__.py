@@ -1,5 +1,9 @@
 """Synchronous multi-agent execution over sampled directed topologies."""
 
+from topology_mas.execution.aime_two_stage import (
+    AIME_TWO_STAGE_PIPELINE_VERSION,
+    AIMETwoStageTextGenerator,
+)
 from topology_mas.execution.assignments import (
     InitialStateAssignment,
     build_initial_state_assignment,
@@ -74,6 +78,8 @@ __all__ = [
     "BatchDisposition",
     "AIME_BOUNDED_PROTOCOL",
     "AIMEBoundedNodeProtocol",
+    "AIME_TWO_STAGE_PIPELINE_VERSION",
+    "AIMETwoStageTextGenerator",
     "BatchExecutionConfig",
     "BatchExecutionConflictError",
     "BatchExecutionManifest",

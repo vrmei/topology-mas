@@ -169,6 +169,7 @@
     "2026_AIME_II_P15"
   ],
   "task_selection": "all frozen 2026 AIME I and II tasks; no difficulty filtering",
+  "total_planned_backend_calls": 8400,
   "total_planned_clean_runs": 300,
   "total_planned_logical_model_calls": 4200
 }

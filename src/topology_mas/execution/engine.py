@@ -209,11 +209,16 @@ class SynchronousExecutionEngine:
                     )
                     completion = self._generator.generate(request)
                     model_calls += 1
+                    backend_call_count = completion.metadata.get("backend_call_count")
                     backend_called = completion.metadata.get("backend_called", True)
                     cache_hit = completion.metadata.get("state_replay_cache_hit", False)
                     if not isinstance(backend_called, bool) or not isinstance(cache_hit, bool):
                         raise ValueError("generator cache metadata must contain booleans")
-                    backend_calls += int(backend_called)
+                    if backend_call_count is None:
+                        backend_call_count = int(backend_called)
+                    if not isinstance(backend_call_count, int) or backend_call_count < 0:
+                        raise ValueError("backend_call_count must be a nonnegative integer")
+                    backend_calls += backend_call_count
                     state_replay_cache_hits += int(cache_hit)
 
                 parsed = self.protocol.parse_answer(
@@ -287,7 +292,9 @@ class SynchronousExecutionEngine:
                     raw_text=self.protocol.public_message(source_turn.raw_output),
                     parsed_answer=source_turn.parsed_answer,
                     answer_state=source_turn.answer_state,
-                    output_tokens=source_turn.output_tokens,
+                    output_tokens=source_turn.metadata.get(
+                        "public_output_tokens", source_turn.output_tokens
+                    ),
                     metadata={"broadcast_copy": True},
                 )
                 messages.append(message)

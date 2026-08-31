@@ -117,6 +117,7 @@ def main() -> None:
         "logical_node_calls_per_task_graph": calls_per_graph,
         "total_planned_clean_runs": len(tasks) * len(graphs_tuple),
         "total_planned_logical_model_calls": len(tasks) * sum(calls_per_graph.values()),
+        "total_planned_backend_calls": 2 * len(tasks) * sum(calls_per_graph.values()),
         "round_zero_policy": "independent_per_graph_run",
         "cross_graph_generation_reuse": False,
     }

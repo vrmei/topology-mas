@@ -33,16 +33,19 @@ attacker, or a robustness claim.
 
 ## Bounded-message AIME protocol
 
-Protocol version: `homogeneous-aime-bounded-message-v1`.
+Protocol version: `homogeneous-aime-private-solve-bounded-message-v2`.
 
-Each generation is itself the public node state. The prompt requests a compact,
-auditable `SOLUTION_SUMMARY` followed by `FINAL_ANSWER: \\boxed{ddd}`. The request
-has a hard 1,024-token output cap and asks the model to stay near 512--768 tokens.
-The entire output is broadcast; node identifiers and sender labels are omitted.
+Each logical node update has two local model calls. The first produces a private
+solution draft with a 16,384-token ceiling. The second receives that draft and
+compresses it into an auditable `SOLUTION_SUMMARY` followed by
+`FINAL_ANSWER: \\boxed{ddd}`. The public summary has a hard 1,024-token output cap
+and a 512--768-token target. Only the summary is broadcast; private drafts remain
+in the audit trace, and node identifiers and sender labels are omitted.
 
-This is a one-pass bounded shared-state protocol. It must not be described as a
-two-stage system that preserves a separate long private chain of thought. A
-length-truncated response without a valid final marker is unparsed and incorrect.
+The summarizer is deterministic (`temperature=0`) and is instructed not to re-solve
+or change the answer extracted from the private draft. The private solver uses the
+official Qwen sampling settings. A length-truncated private solution is marked
+unparsed even if incidental digits occur in the partial text.
 
 ## Model
 
@@ -50,6 +53,7 @@ length-truncated response without a valid final marker is unparsed and incorrect
 - Temperature 0.7, top-p 0.8, top-k 20.
 - One experiment seed and one assignment seed; 300 task-graph clean runs.
 - Independent-per-run Round 0 and no state-replay cache.
+- 4,200 logical node updates and 8,400 physical backend calls.
 
 ## Primary estimands
 

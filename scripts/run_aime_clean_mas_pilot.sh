@@ -27,6 +27,8 @@ export PYTHONPATH=src
   --top-p 0.8 \
   --top-k 20 \
   --max-output-tokens 1024 \
+  --aime-private-max-output-tokens 16384 \
+  --aime-summary-temperature 0.0 \
   --message-order-seed 0 \
   --horizon-policy fixed \
   --timeout-seconds 1800 \

@@ -2,6 +2,7 @@ from collections.abc import Callable
 
 from topology_mas.execution import (
     AIME_BOUNDED_PROTOCOL,
+    AIMETwoStageTextGenerator,
     BatchExecutionConfig,
     BatchExecutionRunner,
     ExecutionSettings,
@@ -54,10 +55,16 @@ def test_aime_bounded_protocol_is_anonymous_and_candidate_free() -> None:
     )
 
     def response(request: TextGenerationRequest) -> str:
-        answer = "041" if request.request_id.endswith("-t0-n0") else "042"
-        return f"SOLUTION_SUMMARY:\nCompact audit.\nFINAL_ANSWER: \\boxed{{{answer}}}"
+        if request.request_id.endswith("-private"):
+            return "Full private derivation.\nFINAL_ANSWER: \\boxed{042}"
+        return "SOLUTION_SUMMARY:\nCompact audit.\nFINAL_ANSWER: \\boxed{042}"
 
-    generator = CapturingGenerator(response)
+    backend = CapturingGenerator(response)
+    generator = AIMETwoStageTextGenerator(
+        backend,
+        private_max_output_tokens=16384,
+        summary_temperature=0.0,
+    )
     trace = SynchronousExecutionEngine(
         generator,
         settings=ExecutionSettings(
@@ -66,6 +73,9 @@ def test_aime_bounded_protocol_is_anonymous_and_candidate_free() -> None:
             top_k=20,
             max_output_tokens=1024,
             initial_state_policy="independent_per_run",
+            generation_pipeline="aime-private-solve-public-summary-v1",
+            private_max_output_tokens=16384,
+            public_summary_temperature=0.0,
         ),
         protocol=AIME_BOUNDED_PROTOCOL,
     ).run(
@@ -78,19 +88,32 @@ def test_aime_bounded_protocol_is_anonymous_and_candidate_free() -> None:
     assert trace.prompt_version == AIME_BOUNDED_PROMPT_VERSION
     assert trace.final_parsed_answer == "42"
     assert trace.final_answer_state.value == "correct"
-    assert all(request.max_output_tokens == 1024 for request in generator.requests)
-    readout_update = next(
-        request
-        for request in generator.requests
-        if request.request_id.endswith("-t1-n2")
+    assert trace.total_model_calls == 4
+    assert trace.total_backend_calls == 8
+    assert len(backend.requests) == 8
+    assert all(
+        request.max_output_tokens == 16384
+        for request in backend.requests
+        if request.request_id.endswith("-private")
     )
-    visible = "\n".join(message.content for message in readout_update.messages)
+    assert all(
+        request.max_output_tokens == 1024
+        for request in backend.requests
+        if request.request_id.endswith("-summary")
+    )
+    readout_private_update = next(
+        request
+        for request in backend.requests
+        if request.request_id.endswith("-t1-n2-private")
+    )
+    visible = "\n".join(message.content for message in readout_private_update.messages)
     assert visible.count("<peer_message>") == 2
     assert "node 0" not in visible.lower()
     assert "node 1" not in visible.lower()
     assert "target_error" not in visible.lower()
     assert "YOUR_PREVIOUS_MESSAGE" in visible
-    assert "preferably 512--768 tokens" in visible
+    assert "private draft" in visible
+    assert all(message.output_tokens == 40 for message in trace.messages)
 
 
 def test_aime_protocol_rejects_gsm8k_oracle_type() -> None:
@@ -132,9 +155,63 @@ def test_aime_protocol_never_scores_a_length_truncated_completion() -> None:
     )
 
 
+def test_two_stage_pipeline_cannot_turn_truncated_private_work_into_an_answer() -> None:
+    class LengthThenSummaryBackend:
+        def generate(self, request: TextGenerationRequest) -> TextGenerationResult:
+            if request.request_id.endswith("-private"):
+                return TextGenerationResult(
+                    raw_text="Partial work containing \\boxed{123}",
+                    model_name="fake-qwen",
+                    finish_reason="length",
+                    input_tokens=10,
+                    output_tokens=16384,
+                    latency_ms=1.0,
+                )
+            return TextGenerationResult(
+                raw_text="SOLUTION_SUMMARY:\nGuess.\nFINAL_ANSWER: \\boxed{123}",
+                model_name="fake-qwen",
+                finish_reason="stop",
+                input_tokens=10,
+                output_tokens=20,
+                latency_ms=1.0,
+            )
+
+    result = AIMETwoStageTextGenerator(
+        LengthThenSummaryBackend(),
+        private_max_output_tokens=16384,
+        summary_temperature=0.0,
+    ).generate(
+        TextGenerationRequest(
+            request_id="length-case",
+            messages=AIME_BOUNDED_PROTOCOL.build_messages(
+                aime_task(), previous_output=None, incoming_messages=()
+            ),
+            seed=0,
+            temperature=0.7,
+            top_p=0.8,
+            top_k=20,
+            max_output_tokens=1024,
+        )
+    )
+
+    assert "FINAL_ANSWER: UNPARSED" in result.raw_text
+    assert AIME_BOUNDED_PROTOCOL.parse_answer(result.raw_text, finish_reason="stop") is None
+    assert result.metadata["private_parsed_answer"] is None
+    assert result.metadata["backend_call_count"] == 2
+
+
 def test_clean_aime_batch_runs_independent_round_zero_end_to_end(tmp_path) -> None:
-    generator = CapturingGenerator(
-        lambda _: "SOLUTION_SUMMARY:\nAuditable work.\nFINAL_ANSWER: \\boxed{042}"
+    backend = CapturingGenerator(
+        lambda request: (
+            "Private work.\nFINAL_ANSWER: \\boxed{042}"
+            if request.request_id.endswith("-private")
+            else "SOLUTION_SUMMARY:\nAuditable work.\nFINAL_ANSWER: \\boxed{042}"
+        )
+    )
+    generator = AIMETwoStageTextGenerator(
+        backend,
+        private_max_output_tokens=16384,
+        summary_temperature=0.0,
     )
     graph = GraphSpec(
         graph_id="aime-two-node",
@@ -152,6 +229,9 @@ def test_clean_aime_batch_runs_independent_round_zero_end_to_end(tmp_path) -> No
                 top_k=20,
                 max_output_tokens=1024,
                 initial_state_policy="independent_per_run",
+                generation_pipeline="aime-private-solve-public-summary-v1",
+                private_max_output_tokens=16384,
+                public_summary_temperature=0.0,
             ),
             protocol=AIME_BOUNDED_PROTOCOL,
         ),
@@ -176,7 +256,8 @@ def test_clean_aime_batch_runs_independent_round_zero_end_to_end(tmp_path) -> No
     # Both nodes independently solve Round 0; only the readout can still affect
     # the endpoint in Round 1 under causal-cone pruning.
     assert summary.trace_model_calls == 3
-    assert len(generator.requests) == 3
+    assert summary.trace_backend_calls == 6
+    assert len(backend.requests) == 6
     manifest = (tmp_path / "manifest.json").read_text(encoding="utf-8")
     assert AIME_BOUNDED_PROMPT_VERSION in manifest
     assert '"initial_state_policy": "independent_per_run"' in manifest

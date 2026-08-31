@@ -8,6 +8,7 @@ from pathlib import Path
 
 from topology_mas.data.aime import load_aime_jsonl
 from topology_mas.data.gsm8k import read_tasks_jsonl
+from topology_mas.execution.aime_two_stage import AIMETwoStageTextGenerator
 from topology_mas.execution.batch import BatchExecutionConfig, BatchExecutionRunner
 from topology_mas.execution.engine import SynchronousExecutionEngine
 from topology_mas.execution.generation import TextGenerator
@@ -101,6 +102,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="required 64-character content fingerprint when state replay is enabled",
     )
     parser.add_argument("--state-replay-namespace")
+    parser.add_argument("--aime-private-max-output-tokens", type=int, default=16384)
+    parser.add_argument("--aime-summary-temperature", type=float, default=0.0)
     return parser
 
 
@@ -180,6 +183,21 @@ def main() -> None:
         state_transition_policy=(
             "state-consistent-replay-v1" if replay_enabled else "independent-resampling"
         ),
+        generation_pipeline=(
+            "aime-private-solve-public-summary-v1"
+            if args.task_format == "aime-free-response"
+            else "single-pass"
+        ),
+        private_max_output_tokens=(
+            args.aime_private_max_output_tokens
+            if args.task_format == "aime-free-response"
+            else None
+        ),
+        public_summary_temperature=(
+            args.aime_summary_temperature
+            if args.task_format == "aime-free-response"
+            else None
+        ),
     )
     config = BatchExecutionConfig(
         experiment_seeds=experiment_seeds,
@@ -216,6 +234,12 @@ def main() -> None:
             if replay_enabled
             else backend
         )
+        if args.task_format == "aime-free-response":
+            generator = AIMETwoStageTextGenerator(
+                generator,
+                private_max_output_tokens=args.aime_private_max_output_tokens,
+                summary_temperature=args.aime_summary_temperature,
+            )
         runner = BatchExecutionRunner(
             SynchronousExecutionEngine(
                 generator,

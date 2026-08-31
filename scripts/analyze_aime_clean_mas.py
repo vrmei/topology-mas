@@ -110,8 +110,30 @@ def build_run_frame(batch, reference: dict[str, dict[str, Any]]) -> pd.DataFrame
                 "final_correct": int(final_state == "C"),
                 "paired_delta": int(final_state == "C") - int(initial_state == "C"),
                 "model_calls": trace.total_model_calls,
+                "backend_calls": trace.total_backend_calls,
                 "input_tokens": trace.total_input_tokens,
                 "output_tokens": trace.total_output_tokens,
+                "private_output_tokens": sum(
+                    turn.metadata.get("private_output_tokens") or 0
+                    for turn in trace.turns
+                ),
+                "public_output_tokens": sum(
+                    turn.metadata.get("public_output_tokens") or 0
+                    for turn in trace.turns
+                ),
+                "private_length_turns": sum(
+                    turn.metadata.get("private_finish_reason") == "length"
+                    for turn in trace.turns
+                ),
+                "private_parsed_turns": sum(
+                    turn.metadata.get("private_parsed_answer") is not None
+                    for turn in trace.turns
+                ),
+                "summary_answer_mismatch_turns": sum(
+                    not turn.metadata.get("summary_answer_matches_private", False)
+                    for turn in trace.turns
+                    if turn.metadata.get("private_parsed_answer") is not None
+                ),
                 "length_turns": sum(
                     turn.finish_reason == "length" for turn in trace.turns
                 ),
@@ -198,13 +220,27 @@ def main() -> None:
         row = transition_summary(group_frame, {"graph_id": graph_id})
         row["edge_count"] = int(group_frame.edge_count.iloc[0])
         row["mean_model_calls"] = float(group_frame.model_calls.mean())
+        row["mean_backend_calls"] = float(group_frame.backend_calls.mean())
         row["mean_input_tokens"] = float(group_frame.input_tokens.mean())
         row["mean_output_tokens"] = float(group_frame.output_tokens.mean())
+        row["mean_private_output_tokens"] = float(
+            group_frame.private_output_tokens.mean()
+        )
+        row["mean_public_output_tokens"] = float(
+            group_frame.public_output_tokens.mean()
+        )
         row["mean_serial_generation_latency_seconds"] = float(
             group_frame.serial_generation_latency_seconds.mean()
         )
         row["length_turn_rate"] = float(
             group_frame.length_turns.sum() / group_frame.model_calls.sum()
+        )
+        row["private_length_turn_rate"] = float(
+            group_frame.private_length_turns.sum() / group_frame.model_calls.sum()
+        )
+        row["summary_answer_mismatch_rate"] = float(
+            group_frame.summary_answer_mismatch_turns.sum()
+            / max(1, group_frame.private_parsed_turns.sum())
         )
         graph_rows.append(row)
     graph_frame = pd.DataFrame(graph_rows).sort_values(["edge_count", "graph_id"])
