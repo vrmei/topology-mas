@@ -425,6 +425,7 @@ class BatchExecutionRunner:
         manifest = BatchExecutionManifest(
             config=self.config,
             execution_settings=self.engine.settings,
+            prompt_version=self.engine.prompt_version,
             node_count=node_count,
             readout_node=readout_node,
             max_rounds=max_rounds,
@@ -660,7 +661,10 @@ class BatchExecutionRunner:
                 for experiment_seed in self.config.experiment_seeds
                 for replica_slot in range(node_count)
             ]
-            if any(record.prompt_version != PROMPT_VERSION for record in selected_records):
+            if any(
+                record.prompt_version != self.engine.prompt_version
+                for record in selected_records
+            ):
                 raise ValueError("round-zero prompt version differs from the execution prompt")
             if any(
                 record.requested_model != self.config.requested_model
@@ -728,7 +732,7 @@ class BatchExecutionRunner:
                 f"trace adversarial answer differs for run spec {spec.run_spec_id}"
             )
         if (
-            trace.prompt_version != PROMPT_VERSION
+            trace.prompt_version != self.engine.prompt_version
             or trace.execution_settings != self.engine.settings
         ):
             raise BatchExecutionConflictError(

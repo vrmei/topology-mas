@@ -32,6 +32,13 @@ from topology_mas.execution.openai_compatible import (
     OpenAICompatibleTextGenerator,
     UnexpectedReturnedModelError,
 )
+from topology_mas.execution.protocols import (
+    AIME_BOUNDED_PROTOCOL,
+    GSM8K_PROTOCOL,
+    AIMEBoundedNodeProtocol,
+    GSM8KNodeProtocol,
+    NodeExecutionProtocol,
+)
 from topology_mas.execution.round_zero import (
     RoundZeroCache,
     RoundZeroCacheConfig,
@@ -65,6 +72,8 @@ from topology_mas.execution.state_replay import (
 __all__ = [
     "ChatMessage",
     "BatchDisposition",
+    "AIME_BOUNDED_PROTOCOL",
+    "AIMEBoundedNodeProtocol",
     "BatchExecutionConfig",
     "BatchExecutionConflictError",
     "BatchExecutionManifest",
@@ -77,8 +86,11 @@ __all__ = [
     "load_adversarial_answer_index",
     "ExecutionRunSpec",
     "InitialStateAssignment",
+    "GSM8K_PROTOCOL",
+    "GSM8KNodeProtocol",
     "InvalidTextCompletionError",
     "OpenAICompatibleTextGenerator",
+    "NodeExecutionProtocol",
     "RoundZeroCache",
     "RoundZeroCacheConfig",
     "RoundZeroCacheConflictError",

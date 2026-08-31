@@ -6,6 +6,7 @@ import argparse
 import json
 from pathlib import Path
 
+from topology_mas.data.aime import load_aime_jsonl
 from topology_mas.data.gsm8k import read_tasks_jsonl
 from topology_mas.execution.batch import BatchExecutionConfig, BatchExecutionRunner
 from topology_mas.execution.engine import SynchronousExecutionEngine
@@ -16,6 +17,7 @@ from topology_mas.execution.inputs import (
     load_selected_adversarial_answers,
 )
 from topology_mas.execution.openai_compatible import OpenAICompatibleTextGenerator
+from topology_mas.execution.protocols import AIME_BOUNDED_PROTOCOL, GSM8K_PROTOCOL
 from topology_mas.execution.round_zero import RoundZeroRecord
 from topology_mas.execution.schemas import ExecutionSettings
 from topology_mas.execution.state_replay import StateConsistentReplayGenerator
@@ -35,6 +37,12 @@ def _parse_seeds(value: str) -> tuple[int, ...]:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tasks", type=Path, required=True)
+    parser.add_argument(
+        "--task-format",
+        choices=("gsm8k-prepared", "aime-free-response"),
+        default="gsm8k-prepared",
+        help="select the task loader and node communication protocol",
+    )
     parser.add_argument("--graphs", type=Path, required=True)
     parser.add_argument("--round-zero-dir", type=Path)
     parser.add_argument(
@@ -98,7 +106,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_parser().parse_args()
-    tasks = read_tasks_jsonl(args.tasks)
+    if args.task_format == "aime-free-response":
+        tasks = load_aime_jsonl(args.tasks, split="test")
+        protocol = AIME_BOUNDED_PROTOCOL
+    else:
+        tasks = read_tasks_jsonl(args.tasks)
+        protocol = GSM8K_PROTOCOL
     graphs = read_graphs_jsonl(args.graphs)
     if args.independent_round_zero:
         if args.round_zero_dir is not None:
@@ -204,7 +217,11 @@ def main() -> None:
             else backend
         )
         runner = BatchExecutionRunner(
-            SynchronousExecutionEngine(generator, settings=settings),
+            SynchronousExecutionEngine(
+                generator,
+                settings=settings,
+                protocol=protocol,
+            ),
             config=config,
             output_dir=args.output_dir,
             max_workers=args.max_workers,

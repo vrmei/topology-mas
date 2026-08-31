@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from topology_mas.execution.answers import classify_numeric_answer, parse_numeric_answer
+from topology_mas.execution.answers import classify_numeric_answer
 from topology_mas.execution.assignments import InitialStateAssignment
 from topology_mas.execution.generation import TextGenerator
-from topology_mas.execution.prompts import PROMPT_VERSION, build_node_messages
+from topology_mas.execution.protocols import GSM8K_PROTOCOL, NodeExecutionProtocol
 from topology_mas.execution.round_zero import RoundZeroRecord
 from topology_mas.execution.schemas import (
     ChatMessage,
@@ -38,9 +38,15 @@ class SynchronousExecutionEngine:
         generator: TextGenerator,
         *,
         settings: ExecutionSettings | None = None,
+        protocol: NodeExecutionProtocol | None = None,
     ) -> None:
         self._generator = generator
         self.settings = settings or ExecutionSettings()
+        self.protocol = protocol or GSM8K_PROTOCOL
+
+    @property
+    def prompt_version(self) -> str:
+        return self.protocol.prompt_version
 
     def run(
         self,
@@ -92,7 +98,7 @@ class SynchronousExecutionEngine:
             condition.value,
             attack_node,
             seed,
-            PROMPT_VERSION,
+            self.prompt_version,
             self.settings.model_dump_json(),
             initial_assignment.assignment_id if initial_assignment else None,
             initial_identity,
@@ -128,7 +134,7 @@ class SynchronousExecutionEngine:
                     )
                 )
                 previous = previous_outputs.get(node_id)
-                expected_prompt_messages = build_node_messages(
+                expected_prompt_messages = self.protocol.build_messages(
                     task,
                     previous_output=previous,
                     incoming_messages=incoming,
@@ -210,7 +216,10 @@ class SynchronousExecutionEngine:
                     backend_calls += int(backend_called)
                     state_replay_cache_hits += int(cache_hit)
 
-                parsed = parse_numeric_answer(completion.raw_text)
+                parsed = self.protocol.parse_answer(
+                    completion.raw_text,
+                    finish_reason=completion.finish_reason,
+                )
                 state = classify_numeric_answer(
                     parsed,
                     reference_answer=task.reference_answer,
@@ -242,7 +251,7 @@ class SynchronousExecutionEngine:
                     metadata={
                         **completion.metadata,
                         "generator_called": generator_called,
-                        "prompt_version": PROMPT_VERSION,
+                        "prompt_version": self.prompt_version,
                         "stochastic_stream_slot": stochastic_stream_slot,
                     },
                 )
@@ -275,7 +284,7 @@ class SynchronousExecutionEngine:
                     round_index=round_index,
                     sender=sender,
                     recipients=tuple(sorted(recipients)),
-                    raw_text=source_turn.raw_output,
+                    raw_text=self.protocol.public_message(source_turn.raw_output),
                     parsed_answer=source_turn.parsed_answer,
                     answer_state=source_turn.answer_state,
                     output_tokens=source_turn.output_tokens,
@@ -309,7 +318,7 @@ class SynchronousExecutionEngine:
                 initial_assignment.structural_node_to_replica if initial_assignment else None
             ),
             seed=seed,
-            prompt_version=PROMPT_VERSION,
+            prompt_version=self.prompt_version,
             execution_settings=self.settings,
             schedule=schedule,
             turns=tuple(turns),
@@ -324,8 +333,8 @@ class SynchronousExecutionEngine:
             total_output_tokens=(known_output_tokens if output_tokens_complete else None),
         )
 
-    @staticmethod
     def _validate_run(
+        self,
         *,
         graph: GraphSpec,
         task: TaskInstance,
@@ -335,8 +344,11 @@ class SynchronousExecutionEngine:
         round_zero_records: tuple[RoundZeroRecord, ...] | None,
         initial_assignment: InitialStateAssignment | None,
     ) -> None:
-        if task.oracle_type != "numeric":
-            raise ValueError("the first execution engine supports numeric tasks only")
+        if task.oracle_type not in self.protocol.supported_oracle_types:
+            raise ValueError(
+                f"protocol {self.prompt_version!r} does not support "
+                f"oracle_type={task.oracle_type!r}"
+            )
         if condition is RunCondition.CLEAN and attack_node is not None:
             raise ValueError("clean execution cannot specify attack_node")
         if condition is RunCondition.ATTACK:
@@ -351,8 +363,8 @@ class SynchronousExecutionEngine:
         if (round_zero_records is None) != (initial_assignment is None):
             raise ValueError("round_zero_records and initial_assignment must be provided together")
 
-    @staticmethod
     def _assigned_initial_records(
+        self,
         *,
         graph: GraphSpec,
         task: TaskInstance,
@@ -371,7 +383,9 @@ class SynchronousExecutionEngine:
         }
         if len(eligible) != graph.node_count or set(eligible) != set(range(graph.node_count)):
             raise ValueError("round-zero cache does not contain exactly one record per replica")
-        if any(record.prompt_version != PROMPT_VERSION for record in eligible.values()):
+        if any(
+            record.prompt_version != self.prompt_version for record in eligible.values()
+        ):
             raise ValueError("round-zero prompt version differs from execution prompt")
         return {
             node_id: eligible[initial_assignment.replica_for_node(node_id)]

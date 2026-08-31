@@ -1,0 +1,174 @@
+{
+  "cross_graph_generation_reuse": false,
+  "edge_levels": [
+    4,
+    8,
+    12,
+    16
+  ],
+  "graph_collection_fingerprint": "06245d98b0ab4b10bb1e42aaaa5bca3e8929a3d34571157c2bea6c4bb3522a03",
+  "graph_count": 10,
+  "graphs_lf_sha256": "06245d98b0ab4b10bb1e42aaaa5bca3e8929a3d34571157c2bea6c4bb3522a03",
+  "horizon": 3,
+  "logical_node_calls_per_task_graph": {
+    "g-n5-m12-b7994e50c3403f63": 16,
+    "g-n5-m12-c2d302af32c23635": 15,
+    "g-n5-m12-e751609d27011f71": 15,
+    "g-n5-m16-d8343258cfd33056": 16,
+    "g-n5-m4-020c02ee23fd10e6": 14,
+    "g-n5-m4-8ace11eb98f60ea5": 13,
+    "g-n5-m4-e6b58e28f5d141e8": 12,
+    "g-n5-m8-7f3a9ce5d54de331": 13,
+    "g-n5-m8-9970b4b974e58087": 12,
+    "g-n5-m8-d7ed48430d5f1b67": 14
+  },
+  "node_count": 5,
+  "preparation_version": "aime-clean-mas-pilot-n5-h3-v1",
+  "readout_node": 4,
+  "round_zero_policy": "independent_per_graph_run",
+  "schema_version": 1,
+  "strata": [
+    {
+      "config": {
+        "edge_count": 4,
+        "graph_count": 3,
+        "max_attempts_per_graph": 100000,
+        "max_rounds": 3,
+        "node_count": 5,
+        "readout_node": 4,
+        "seed": 20260905
+      },
+      "edge_count": 4,
+      "graph_count": 3,
+      "graph_ids": [
+        "g-n5-m4-020c02ee23fd10e6",
+        "g-n5-m4-8ace11eb98f60ea5",
+        "g-n5-m4-e6b58e28f5d141e8"
+      ],
+      "sampling_summary": {
+        "accepted_graphs": 3,
+        "proposal_acceptance_rate": 0.12,
+        "proposal_attempts": 25,
+        "rejected_duplicate": 0,
+        "rejected_round_limit": 0,
+        "rejected_unreachable": 22,
+        "requested_graphs": 3
+      }
+    },
+    {
+      "config": {
+        "edge_count": 8,
+        "graph_count": 3,
+        "max_attempts_per_graph": 100000,
+        "max_rounds": 3,
+        "node_count": 5,
+        "readout_node": 4,
+        "seed": 20260909
+      },
+      "edge_count": 8,
+      "graph_count": 3,
+      "graph_ids": [
+        "g-n5-m8-d7ed48430d5f1b67",
+        "g-n5-m8-7f3a9ce5d54de331",
+        "g-n5-m8-9970b4b974e58087"
+      ],
+      "sampling_summary": {
+        "accepted_graphs": 3,
+        "proposal_acceptance_rate": 1.0,
+        "proposal_attempts": 3,
+        "rejected_duplicate": 0,
+        "rejected_round_limit": 0,
+        "rejected_unreachable": 0,
+        "requested_graphs": 3
+      }
+    },
+    {
+      "config": {
+        "edge_count": 12,
+        "graph_count": 3,
+        "max_attempts_per_graph": 100000,
+        "max_rounds": 3,
+        "node_count": 5,
+        "readout_node": 4,
+        "seed": 20260913
+      },
+      "edge_count": 12,
+      "graph_count": 3,
+      "graph_ids": [
+        "g-n5-m12-e751609d27011f71",
+        "g-n5-m12-b7994e50c3403f63",
+        "g-n5-m12-c2d302af32c23635"
+      ],
+      "sampling_summary": {
+        "accepted_graphs": 3,
+        "proposal_acceptance_rate": 1.0,
+        "proposal_attempts": 3,
+        "rejected_duplicate": 0,
+        "rejected_round_limit": 0,
+        "rejected_unreachable": 0,
+        "requested_graphs": 3
+      }
+    },
+    {
+      "config": {
+        "edge_count": 16,
+        "graph_count": 1,
+        "max_attempts_per_graph": 100000,
+        "max_rounds": 3,
+        "node_count": 5,
+        "readout_node": 4,
+        "seed": 20260917
+      },
+      "edge_count": 16,
+      "graph_count": 1,
+      "graph_ids": [
+        "g-n5-m16-d8343258cfd33056"
+      ],
+      "sampling_summary": {
+        "accepted_graphs": 1,
+        "proposal_acceptance_rate": 1.0,
+        "proposal_attempts": 1,
+        "rejected_duplicate": 0,
+        "rejected_round_limit": 0,
+        "rejected_unreachable": 0,
+        "requested_graphs": 1
+      }
+    }
+  ],
+  "task_count": 30,
+  "task_ids": [
+    "2026_AIME_I_P01",
+    "2026_AIME_I_P02",
+    "2026_AIME_I_P03",
+    "2026_AIME_I_P04",
+    "2026_AIME_I_P05",
+    "2026_AIME_I_P06",
+    "2026_AIME_I_P07",
+    "2026_AIME_I_P08",
+    "2026_AIME_I_P09",
+    "2026_AIME_I_P10",
+    "2026_AIME_I_P11",
+    "2026_AIME_I_P12",
+    "2026_AIME_I_P13",
+    "2026_AIME_I_P14",
+    "2026_AIME_I_P15",
+    "2026_AIME_II_P01",
+    "2026_AIME_II_P02",
+    "2026_AIME_II_P03",
+    "2026_AIME_II_P04",
+    "2026_AIME_II_P05",
+    "2026_AIME_II_P06",
+    "2026_AIME_II_P07",
+    "2026_AIME_II_P08",
+    "2026_AIME_II_P09",
+    "2026_AIME_II_P10",
+    "2026_AIME_II_P11",
+    "2026_AIME_II_P12",
+    "2026_AIME_II_P13",
+    "2026_AIME_II_P14",
+    "2026_AIME_II_P15"
+  ],
+  "task_selection": "all frozen 2026 AIME I and II tasks; no difficulty filtering",
+  "total_planned_clean_runs": 300,
+  "total_planned_logical_model_calls": 4200
+}
