@@ -1,0 +1,93 @@
+{
+  "dataset": "2026 AIME I + 2026 AIME II",
+  "normal_agent_visible_fields": [
+    "problem"
+  ],
+  "output_lf_sha256": "7ab78113481d45b9d2f593cd8ba9c9c2d9ef68c99c41ae86a46551296e3a03b0",
+  "retrieved_at": "2026-08-31T08:59:41.754738+00:00",
+  "schema_version": 1,
+  "source_base_questions_sha256": {
+    "2026_AIME_I": "8723434c12c1f0cd02d48793a9b1a88d410007981f171e7b824f5fef9b178fbd",
+    "2026_AIME_II": "e747bfb05d539224b00602131a18b8799385751f66e6c55d7d0228084a3f80cd"
+  },
+  "source_identity_note": "The exact contest form is identified by these source URLs and source hashes; similarly named regional forms may differ.",
+  "source_ordering_note": "Problem numbers use baseQuestions list order; upstream aimeProblemNumber metadata is non-unique.",
+  "source_urls": {
+    "2026_AIME_I": "https://live.poshenloh.com/past-contests/aime/2026I",
+    "2026_AIME_II": "https://live.poshenloh.com/past-contests/aime/2026II"
+  },
+  "task_count": 30,
+  "task_ids": [
+    "2026_AIME_I_P01",
+    "2026_AIME_I_P02",
+    "2026_AIME_I_P03",
+    "2026_AIME_I_P04",
+    "2026_AIME_I_P05",
+    "2026_AIME_I_P06",
+    "2026_AIME_I_P07",
+    "2026_AIME_I_P08",
+    "2026_AIME_I_P09",
+    "2026_AIME_I_P10",
+    "2026_AIME_I_P11",
+    "2026_AIME_I_P12",
+    "2026_AIME_I_P13",
+    "2026_AIME_I_P14",
+    "2026_AIME_I_P15",
+    "2026_AIME_II_P01",
+    "2026_AIME_II_P02",
+    "2026_AIME_II_P03",
+    "2026_AIME_II_P04",
+    "2026_AIME_II_P05",
+    "2026_AIME_II_P06",
+    "2026_AIME_II_P07",
+    "2026_AIME_II_P08",
+    "2026_AIME_II_P09",
+    "2026_AIME_II_P10",
+    "2026_AIME_II_P11",
+    "2026_AIME_II_P12",
+    "2026_AIME_II_P13",
+    "2026_AIME_II_P14",
+    "2026_AIME_II_P15"
+  ],
+  "text_only_normalization": {
+    "enabled": true,
+    "illustrative_image_tags": "replaced with [Illustrative diagram omitted.]",
+    "inline_emphasis_tags": "removed"
+  },
+  "upstream_aime_problem_numbers": {
+    "2026_AIME_I": [
+      1,
+      2,
+      2,
+      3,
+      4,
+      3,
+      5,
+      5,
+      7,
+      8,
+      11,
+      10,
+      13,
+      12,
+      15
+    ],
+    "2026_AIME_II": [
+      1,
+      3,
+      5,
+      3,
+      4,
+      6,
+      7,
+      9,
+      8,
+      7,
+      10,
+      9,
+      13,
+      13,
+      14
+    ]
+  }
+}

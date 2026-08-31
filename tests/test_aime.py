@@ -5,7 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from topology_mas.data.aime import AIMERecord, load_aime_jsonl
+from topology_mas.data.aime import (
+    AIMERecord,
+    load_aime_jsonl,
+    normalize_aime_text_question,
+)
 from topology_mas.execution.aime import (
     build_aime_round_zero_messages,
     parse_aime_answer,
@@ -37,6 +41,19 @@ def test_aime_prompt_hides_evaluator_fields() -> None:
     assert "task-secret" not in visible
     assert "28" not in visible
     assert "candidate" not in visible.lower()
+
+
+def test_aime_text_normalization_is_explicit_and_rejects_unknown_html() -> None:
+    raw = (
+        "Define an <i>object</i>.\n\n"
+        '<img src="/aime/example.svg" style="max-height: 4rem"/>\n\n'
+        "Find its size."
+    )
+    assert normalize_aime_text_question(raw) == (
+        "Define an object.\n\n[Illustrative diagram omitted.]\n\nFind its size."
+    )
+    with pytest.raises(ValueError, match="unsupported HTML"):
+        normalize_aime_text_question("A <table><tr></tr></table>")
 
 
 def test_aime_loader_rejects_extra_fields_and_duplicates(tmp_path: Path) -> None:

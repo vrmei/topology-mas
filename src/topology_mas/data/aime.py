@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Literal
 
@@ -11,6 +12,24 @@ from pydantic import BaseModel, ConfigDict, Field
 from topology_mas.models import TaskInstance
 
 AIME_SCHEMA_VERSION = "aime-free-response-v1"
+
+_ILLUSTRATIVE_IMAGE = re.compile(r"<img\b[^>]*?/?>", re.IGNORECASE)
+_INLINE_EMPHASIS = re.compile(r"</?(?:i|em|b|strong)>", re.IGNORECASE)
+_ANY_HTML_TAG = re.compile(r"<[^>]+>")
+
+
+def normalize_aime_text_question(raw_question: str) -> str:
+    """Convert known presentational HTML into an explicit text-only prompt."""
+
+    normalized = _INLINE_EMPHASIS.sub("", raw_question)
+    normalized = _ILLUSTRATIVE_IMAGE.sub(
+        "\n[Illustrative diagram omitted.]\n",
+        normalized,
+    )
+    remaining_tags = _ANY_HTML_TAG.findall(normalized)
+    if remaining_tags:
+        raise ValueError(f"unsupported HTML tags in AIME question: {remaining_tags}")
+    return re.sub(r"\n{3,}", "\n\n", normalized).strip()
 
 
 class AIMERecord(BaseModel):

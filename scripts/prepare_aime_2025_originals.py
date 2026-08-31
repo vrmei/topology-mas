@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Freeze the 30 original 2025 AIME I/II free-response tasks."""
+"""Freeze the 30 original AIME I/II free-response tasks for one year."""
 
 from __future__ import annotations
 
@@ -15,12 +15,18 @@ from typing import Any
 
 import httpx
 
-from topology_mas.data.aime import AIMERecord
+from topology_mas.data.aime import AIMERecord, normalize_aime_text_question
 
-SOURCE_URLS = {
-    "2025_AIME_I": "https://live.poshenloh.com/past-contests/aime/2025I",
-    "2025_AIME_II": "https://live.poshenloh.com/past-contests/aime/2025II",
-}
+
+def source_urls(year: int) -> dict[str, str]:
+    """Return the two LIVE contest pages for an AIME year."""
+
+    if year < 2000:
+        raise ValueError("paired AIME I/II data requires year >= 2000")
+    return {
+        f"{year}_AIME_I": f"https://live.poshenloh.com/past-contests/aime/{year}I",
+        f"{year}_AIME_II": f"https://live.poshenloh.com/past-contests/aime/{year}II",
+    }
 
 
 class NextDataParser(HTMLParser):
@@ -92,15 +98,24 @@ def extract_questions(html: str) -> list[dict[str, Any]]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--year", type=int, default=2025)
+    parser.add_argument(
+        "--text-only-normalization",
+        action="store_true",
+        help=(
+            "remove presentational HTML and replace illustrative image tags with "
+            "an explicit omission marker"
+        ),
+    )
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("data/aime/original_2025.jsonl"),
+        default=None,
     )
     parser.add_argument(
         "--manifest",
         type=Path,
-        default=Path("data/aime/original_2025.manifest.json"),
+        default=None,
     )
     parser.add_argument("--timeout-seconds", type=float, default=60.0)
     return parser.parse_args()
@@ -108,11 +123,16 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    urls = source_urls(args.year)
+    output = args.output or Path(f"data/aime/original_{args.year}.jsonl")
+    manifest_path = args.manifest or Path(
+        f"data/aime/original_{args.year}.manifest.json"
+    )
     records: list[AIMERecord] = []
     source_fingerprints: dict[str, str] = {}
     upstream_problem_numbers: dict[str, list[object]] = {}
     with httpx.Client(timeout=args.timeout_seconds, follow_redirects=True) as client:
-        for contest_id, url in SOURCE_URLS.items():
+        for contest_id, url in urls.items():
             response = client.get(url)
             response.raise_for_status()
             questions = extract_questions(response.text)
@@ -127,11 +147,14 @@ def main() -> None:
             ]
             source_fingerprints[contest_id] = canonical_sha256(questions)
             for number, row in enumerate(questions, start=1):
+                problem = str(row["question"]).strip()
+                if args.text_only_normalization:
+                    problem = normalize_aime_text_question(problem)
                 record = AIMERecord(
                     family_id=f"{contest_id}_P{number:02d}",
                     task_id=f"{contest_id}_P{number:02d}",
                     mutation_type="original",
-                    problem=str(row["question"]).strip(),
+                    problem=problem,
                     gold_answer=int(row["answer"]),
                 )
                 records.append(record)
@@ -143,10 +166,14 @@ def main() -> None:
     dataset_lf_sha256 = hashlib.sha256(jsonl.encode("utf-8")).hexdigest()
     manifest = {
         "schema_version": 1,
-        "dataset": "2025 AIME I + 2025 AIME II",
+        "dataset": f"{args.year} AIME I + {args.year} AIME II",
         "task_count": len(records),
         "task_ids": task_ids,
-        "source_urls": SOURCE_URLS,
+        "source_urls": urls,
+        "source_identity_note": (
+            "The exact contest form is identified by these source URLs and "
+            "source hashes; similarly named regional forms may differ."
+        ),
         "source_base_questions_sha256": source_fingerprints,
         "source_ordering_note": (
             "Problem numbers use baseQuestions list order; upstream "
@@ -158,17 +185,28 @@ def main() -> None:
         "output_lf_sha256": dataset_lf_sha256,
         "retrieved_at": datetime.now(timezone.utc).isoformat(),
         "normal_agent_visible_fields": ["problem"],
+        "text_only_normalization": (
+            {
+                "enabled": True,
+                "inline_emphasis_tags": "removed",
+                "illustrative_image_tags": (
+                    "replaced with [Illustrative diagram omitted.]"
+                ),
+            }
+            if args.text_only_normalization
+            else {"enabled": False}
+        ),
     }
-    atomic_text(args.output, jsonl)
+    atomic_text(output, jsonl)
     atomic_text(
-        args.manifest,
+        manifest_path,
         json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
     )
     print(
         json.dumps(
             {
-                "output": str(args.output.resolve()),
-                "manifest": str(args.manifest.resolve()),
+                "output": str(output.resolve()),
+                "manifest": str(manifest_path.resolve()),
                 "task_count": len(records),
                 "output_lf_sha256": dataset_lf_sha256,
             },
