@@ -1,0 +1,86 @@
+{
+  "analysis_version": "aime-original-round0-analysis-v1",
+  "bootstrap_samples": 10000,
+  "models": [
+    {
+      "accuracy_on_valid_answer": 0.5365853658536586,
+      "between_task_sd": 0.417612260356422,
+      "contest_utility": {
+        "AIME_I": 0.4533333333333333,
+        "AIME_II": 0.4266666666666667
+      },
+      "label": "qwen3-4b",
+      "length_finish_rate": 0.15666666666666668,
+      "model": "Qwen/Qwen3-4B-Instruct-2507",
+      "parsed_rate": 0.8200000000000001,
+      "replicates_per_task": 10,
+      "requests": 300,
+      "round_zero_utility": 0.44,
+      "run_dir": "/root/autodl-tmp/aime_original_qwen3_4b_round0_16k_formal_v1",
+      "sampling": {
+        "max_output_tokens": 16384,
+        "min_p": null,
+        "presence_penalty": null,
+        "temperature": 0.7,
+        "top_k": 20,
+        "top_p": 0.8
+      },
+      "task_band_counts": {
+        "ceiling_0.9_to_1.0": 7,
+        "floor_0_to_0.1": 12,
+        "informative_0.2_to_0.8": 11
+      },
+      "task_bootstrap_95_ci": [
+        0.29,
+        0.5933333333333334
+      ],
+      "tasks": 30
+    },
+    {
+      "accuracy_on_valid_answer": 0.0,
+      "between_task_sd": 0.0,
+      "contest_utility": {
+        "AIME_I": 0.0,
+        "AIME_II": 0.0
+      },
+      "label": "llama31-8b",
+      "length_finish_rate": 0.56,
+      "model": "meta-llama/Llama-3.1-8B-Instruct",
+      "parsed_rate": 0.38666666666666666,
+      "replicates_per_task": 10,
+      "requests": 300,
+      "round_zero_utility": 0.0,
+      "run_dir": "/root/autodl-tmp/aime_original_llama31_8b_round0_16k_formal_v1",
+      "sampling": {
+        "max_output_tokens": 16384,
+        "min_p": null,
+        "presence_penalty": null,
+        "temperature": 0.6,
+        "top_k": null,
+        "top_p": 0.9
+      },
+      "task_band_counts": {
+        "ceiling_0.9_to_1.0": 0,
+        "floor_0_to_0.1": 30,
+        "informative_0.2_to_0.8": 0
+      },
+      "task_bootstrap_95_ci": [
+        0.0,
+        0.0
+      ],
+      "tasks": 30
+    }
+  ],
+  "pairwise_model_contrasts": [
+    {
+      "left": "qwen3-4b",
+      "mean_task_solve_rate_difference_right_minus_left": -0.44,
+      "right": "llama31-8b",
+      "shared_tasks": 30,
+      "task_bootstrap_95_ci": [
+        -0.5933333333333334,
+        -0.2966666666666667
+      ]
+    }
+  ]
+}
