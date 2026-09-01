@@ -16,10 +16,13 @@ import numpy as np
 import pandas as pd
 
 from topology_mas.analysis.loader import load_complete_batch
-from topology_mas.execution.aime import AIME_BOUNDED_PROMPT_VERSION
+from topology_mas.execution.aime import (
+    AIME_BOUNDED_PROMPT_VERSION,
+    AIME_FULL_RATIONALE_PROMPT_VERSION,
+)
 from topology_mas.models import AnswerState, RunCondition
 
-ANALYSIS_VERSION = "aime-clean-mas-paired-v2"
+ANALYSIS_VERSION = "aime-clean-mas-paired-v3"
 
 
 def parse_args() -> argparse.Namespace:
@@ -40,6 +43,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--bootstrap-samples", type=int, default=10_000)
     parser.add_argument("--bootstrap-seed", type=int, default=20260901)
+    parser.add_argument(
+        "--communication-protocol",
+        choices=("bounded-ablation", "full-rationale"),
+        default="bounded-ablation",
+        help="explicitly pin the expected immutable prompt protocol",
+    )
     return parser.parse_args()
 
 
@@ -95,6 +104,7 @@ def build_run_frame(
     reference: dict[str, dict[str, Any]],
     *,
     cohort: str = "batch_1",
+    expected_prompt_version: str = AIME_BOUNDED_PROMPT_VERSION,
 ) -> pd.DataFrame:
     graph_by_id = {graph.graph_id: graph for graph in batch.graphs}
     rows = []
@@ -104,8 +114,11 @@ def build_run_frame(
         graph = graph_by_id[spec.graph_id]
         if spec.condition is not RunCondition.CLEAN:
             raise ValueError("AIME clean analysis received a non-clean run")
-        if trace.prompt_version != AIME_BOUNDED_PROMPT_VERSION:
-            raise ValueError("trace does not use the frozen AIME bounded-message protocol")
+        if trace.prompt_version != expected_prompt_version:
+            raise ValueError(
+                f"trace prompt {trace.prompt_version!r} differs from expected "
+                f"{expected_prompt_version!r}"
+            )
         round_zero = readout_turn(trace, node_id=graph.readout_node, round_index=0)
         final = readout_turn(
             trace,
@@ -157,6 +170,41 @@ def build_run_frame(
                 ),
                 "unparsed_turns": sum(
                     turn.answer_state is AnswerState.UNPARSED for turn in trace.turns
+                ),
+                "audit_turns": sum(
+                    "communication_audit" in turn.metadata for turn in trace.turns
+                ),
+                "summarization_turns": sum(
+                    bool(turn.metadata.get("communication_audit", {}).get("summarization"))
+                    for turn in trace.turns
+                ),
+                "message_compression_turns": sum(
+                    bool(
+                        turn.metadata.get("communication_audit", {}).get(
+                            "message_compression"
+                        )
+                    )
+                    for turn in trace.turns
+                ),
+                "context_overflow_turns": sum(
+                    bool(
+                        turn.metadata.get("communication_audit", {}).get(
+                            "context_overflow"
+                        )
+                    )
+                    for turn in trace.turns
+                ),
+                "context_truncation_turns": sum(
+                    bool(
+                        turn.metadata.get("communication_audit", {}).get(
+                            "context_truncation"
+                        )
+                    )
+                    for turn in trace.turns
+                ),
+                "raw_broadcast_mismatch_messages": sum(
+                    not bool(message.metadata.get("public_message_equals_raw_output"))
+                    for message in trace.messages
                 ),
                 "serial_generation_latency_seconds": sum(
                     turn.latency_ms or 0.0 for turn in trace.turns
@@ -576,9 +624,18 @@ def main() -> None:
     reference = read_reference(args.round_zero_reference)
     if set(reference) != set(batches[0].manifest.task_ids):
         raise ValueError("external Round-zero reference tasks differ from the clean batch")
+    expected_prompt_version = {
+        "bounded-ablation": AIME_BOUNDED_PROMPT_VERSION,
+        "full-rationale": AIME_FULL_RATIONALE_PROMPT_VERSION,
+    }[args.communication_protocol]
     frame = pd.concat(
         [
-            build_run_frame(batch, reference, cohort=label)
+            build_run_frame(
+                batch,
+                reference,
+                cohort=label,
+                expected_prompt_version=expected_prompt_version,
+            )
             for batch, label in zip(batches, labels, strict=True)
         ],
         ignore_index=True,
@@ -859,6 +916,21 @@ def main() -> None:
     overall["graph_final_utility_sd"] = pstdev(graph_frame.final_utility)
     overall["external_full_rationale_round_zero_utility"] = 0.5133333333333333
     overall["external_reference_is_paired"] = False
+    overall["prompt_version"] = expected_prompt_version
+    overall["communication_protocol"] = args.communication_protocol
+    overall["trace_model_calls"] = int(frame.model_calls.sum())
+    overall["trace_backend_calls"] = int(frame.backend_calls.sum())
+    overall["one_physical_call_per_node_update"] = bool(
+        (frame.model_calls == frame.backend_calls).all()
+    )
+    overall["audited_turns"] = int(frame.audit_turns.sum())
+    overall["summarization_turns"] = int(frame.summarization_turns.sum())
+    overall["message_compression_turns"] = int(frame.message_compression_turns.sum())
+    overall["context_overflow_turns"] = int(frame.context_overflow_turns.sum())
+    overall["context_truncation_turns"] = int(frame.context_truncation_turns.sum())
+    overall["raw_broadcast_mismatch_messages"] = int(
+        frame.raw_broadcast_mismatch_messages.sum()
+    )
 
     output = args.output_dir
     output.mkdir(parents=True, exist_ok=True)
@@ -938,6 +1010,8 @@ def main() -> None:
         "analysis_version": ANALYSIS_VERSION,
         "bootstrap_samples": args.bootstrap_samples,
         "bootstrap_seed": args.bootstrap_seed,
+        "communication_protocol": args.communication_protocol,
+        "expected_prompt_version": expected_prompt_version,
         "batch_dirs": [str(path) for path in args.batch_dir],
         "batch_labels": labels,
         "overall": overall,

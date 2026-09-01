@@ -273,6 +273,7 @@ class BatchExecutionStore:
         self.round_zero_index_path = self.inputs_dir / "round_zero_index.jsonl"
         self.adversarial_answers_path = self.inputs_dir / "adversarial_answers.jsonl"
         self.traces_dir = self.root / "traces"
+        self.failures_dir = self.root / "failures"
 
     def initialize(
         self,
@@ -309,6 +310,7 @@ class BatchExecutionStore:
         self.root.mkdir(parents=True, exist_ok=True)
         self.inputs_dir.mkdir(parents=True, exist_ok=True)
         self.traces_dir.mkdir(parents=True, exist_ok=True)
+        self.failures_dir.mkdir(parents=True, exist_ok=True)
         for path, content, _ in artifacts:
             if not path.exists():
                 _atomic_write_text(path, content)
@@ -343,6 +345,31 @@ class BatchExecutionStore:
                 raise BatchExecutionConflictError(f"cached trace differs at {path}")
             return path
         _atomic_write_json(path, stored)
+        return path
+
+    def save_failure(self, spec: ExecutionRunSpec, exc: Exception) -> Path:
+        """Persist a non-secret structured failure without discarding successful peers."""
+
+        path = self.failures_dir / f"{spec.run_spec_id}.json"
+        details = {
+            name: getattr(exc, name)
+            for name in (
+                "context_limit",
+                "input_tokens",
+                "requested_max_output_tokens",
+                "request_id",
+            )
+            if hasattr(exc, name)
+        }
+        _atomic_write_json(
+            path,
+            {
+                "run_spec": spec,
+                "exception_type": type(exc).__name__,
+                "message": str(exc),
+                "details": details,
+            },
+        )
         return path
 
     def write_results(
@@ -511,18 +538,24 @@ class BatchExecutionRunner:
             disposition = BatchDisposition.CACHED
         else:
             task = task_by_id[spec.task_id]
-            trace = self.engine.run(
-                graph=graph_by_id[spec.graph_id],
-                task=task,
-                condition=spec.condition,
-                seed=spec.experiment_seed,
-                attack_node=spec.attack_node,
-                adversarial_answer=(
-                    adversarial[spec.task_id] if spec.condition is RunCondition.ATTACK else None
-                ),
-                round_zero_records=(selected_records if assignment is not None else None),
-                initial_assignment=assignment,
-            )
+            try:
+                trace = self.engine.run(
+                    graph=graph_by_id[spec.graph_id],
+                    task=task,
+                    condition=spec.condition,
+                    seed=spec.experiment_seed,
+                    attack_node=spec.attack_node,
+                    adversarial_answer=(
+                        adversarial[spec.task_id]
+                        if spec.condition is RunCondition.ATTACK
+                        else None
+                    ),
+                    round_zero_records=(selected_records if assignment is not None else None),
+                    initial_assignment=assignment,
+                )
+            except Exception as exc:
+                self.store.save_failure(spec, exc)
+                raise
             self._validate_trace(
                 spec=spec,
                 trace=trace,

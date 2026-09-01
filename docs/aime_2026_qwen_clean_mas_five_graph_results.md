@@ -1,4 +1,8 @@
-# 2026 AIME Qwen clean-MAS five-graph analysis
+# AIME bounded-message ablation: 2026 Qwen clean-MAS
+
+> **Status:** communication-compression ablation only. This 480-run collection
+> is retained unchanged, but it is not the primary AIME result and must not be
+> used as the direct full-rationale comparison to Llama/GSM8K.
 
 ## Scope
 

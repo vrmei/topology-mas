@@ -18,7 +18,11 @@ from topology_mas.execution.inputs import (
     load_selected_adversarial_answers,
 )
 from topology_mas.execution.openai_compatible import OpenAICompatibleTextGenerator
-from topology_mas.execution.protocols import AIME_BOUNDED_PROTOCOL, GSM8K_PROTOCOL
+from topology_mas.execution.protocols import (
+    AIME_BOUNDED_PROTOCOL,
+    AIME_FULL_RATIONALE_PROTOCOL,
+    GSM8K_PROTOCOL,
+)
 from topology_mas.execution.round_zero import RoundZeroRecord
 from topology_mas.execution.schemas import ExecutionSettings
 from topology_mas.execution.state_replay import StateConsistentReplayGenerator
@@ -40,7 +44,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--tasks", type=Path, required=True)
     parser.add_argument(
         "--task-format",
-        choices=("gsm8k-prepared", "aime-free-response"),
+        choices=("gsm8k-prepared", "aime-free-response", "aime-full-rationale"),
         default="gsm8k-prepared",
         help="select the task loader and node communication protocol",
     )
@@ -91,6 +95,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--timeout-seconds", type=float, default=120.0)
     parser.add_argument("--max-attempts", type=int, default=3)
+    parser.add_argument(
+        "--strict-context-window",
+        action="store_true",
+        help="fail on context overflow instead of silently reducing max output tokens",
+    )
     parser.add_argument("--max-workers", type=int, default=1)
     parser.add_argument(
         "--state-replay-cache-dir",
@@ -109,9 +118,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_parser().parse_args()
-    if args.task_format == "aime-free-response":
+    if args.task_format in {"aime-free-response", "aime-full-rationale"}:
         tasks = load_aime_jsonl(args.tasks, split="test")
-        protocol = AIME_BOUNDED_PROTOCOL
+        protocol = (
+            AIME_FULL_RATIONALE_PROTOCOL
+            if args.task_format == "aime-full-rationale"
+            else AIME_BOUNDED_PROTOCOL
+        )
     else:
         tasks = read_tasks_jsonl(args.tasks)
         protocol = GSM8K_PROTOCOL
@@ -221,6 +234,7 @@ def main() -> None:
         api_key_env=None if args.no_auth else args.api_key_env,
         timeout_seconds=args.timeout_seconds,
         max_attempts=args.max_attempts,
+        allow_context_window_adjustment=not args.strict_context_window,
     ) as backend:
         generator: TextGenerator = (
             StateConsistentReplayGenerator(

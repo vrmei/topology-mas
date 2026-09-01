@@ -32,14 +32,17 @@ from topology_mas.execution.inputs import (
     load_selected_adversarial_answers,
 )
 from topology_mas.execution.openai_compatible import (
+    ContextWindowOverflowError,
     InvalidTextCompletionError,
     OpenAICompatibleTextGenerator,
     UnexpectedReturnedModelError,
 )
 from topology_mas.execution.protocols import (
     AIME_BOUNDED_PROTOCOL,
+    AIME_FULL_RATIONALE_PROTOCOL,
     GSM8K_PROTOCOL,
     AIMEBoundedNodeProtocol,
+    AIMEFullRationaleNodeProtocol,
     GSM8KNodeProtocol,
     NodeExecutionProtocol,
 )
@@ -77,7 +80,9 @@ __all__ = [
     "ChatMessage",
     "BatchDisposition",
     "AIME_BOUNDED_PROTOCOL",
+    "AIME_FULL_RATIONALE_PROTOCOL",
     "AIMEBoundedNodeProtocol",
+    "AIMEFullRationaleNodeProtocol",
     "AIME_TWO_STAGE_PIPELINE_VERSION",
     "AIMETwoStageTextGenerator",
     "BatchExecutionConfig",
@@ -94,6 +99,7 @@ __all__ = [
     "InitialStateAssignment",
     "GSM8K_PROTOCOL",
     "GSM8KNodeProtocol",
+    "ContextWindowOverflowError",
     "InvalidTextCompletionError",
     "OpenAICompatibleTextGenerator",
     "NodeExecutionProtocol",

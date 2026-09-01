@@ -30,6 +30,28 @@ class UnexpectedReturnedModelError(ValueError):
         self.returned = returned
 
 
+class ContextWindowOverflowError(RuntimeError):
+    """A request exceeded the serving context and silent adjustment was disabled."""
+
+    def __init__(
+        self,
+        *,
+        context_limit: int,
+        input_tokens: int,
+        requested_max_output_tokens: int,
+        request_id: str,
+    ) -> None:
+        super().__init__(
+            "context overflow: "
+            f"limit={context_limit}, input={input_tokens}, "
+            f"requested_output={requested_max_output_tokens}, request_id={request_id}"
+        )
+        self.context_limit = context_limit
+        self.input_tokens = input_tokens
+        self.requested_max_output_tokens = requested_max_output_tokens
+        self.request_id = request_id
+
+
 class OpenAICompatibleTextGenerator:
     """Synchronous adapter with bounded retries and no model fallback."""
 
@@ -51,6 +73,7 @@ class OpenAICompatibleTextGenerator:
         timeout_seconds: float = 120.0,
         max_attempts: int = 3,
         retry_base_seconds: float = 1.0,
+        allow_context_window_adjustment: bool = True,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         key: str | None
@@ -77,6 +100,7 @@ class OpenAICompatibleTextGenerator:
         self._api_key = key
         self._max_attempts = max_attempts
         self._retry_base_seconds = retry_base_seconds
+        self._allow_context_window_adjustment = allow_context_window_adjustment
         self._client = httpx.Client(timeout=timeout_seconds, transport=transport)
 
     def close(self) -> None:
@@ -106,8 +130,20 @@ class OpenAICompatibleTextGenerator:
         try:
             response, attempts = self._post_with_retry(payload)
         except httpx.HTTPStatusError as exc:
-            safe_max_tokens = self._context_safe_max_tokens(exc.response)
+            context_details = self._context_details(exc.response)
+            safe_max_tokens = (
+                None
+                if context_details is None
+                else context_details[0] - context_details[1]
+            )
             requested_max_tokens = payload["max_tokens"]
+            if context_details is not None and not self._allow_context_window_adjustment:
+                raise ContextWindowOverflowError(
+                    context_limit=context_details[0],
+                    input_tokens=context_details[1],
+                    requested_max_output_tokens=requested_max_tokens,
+                    request_id=request.request_id,
+                ) from exc
             if (
                 safe_max_tokens is None
                 or safe_max_tokens < 1
@@ -173,6 +209,14 @@ class OpenAICompatibleTextGenerator:
     def _context_safe_max_tokens(cls, response: httpx.Response) -> int | None:
         """Parse a vLLM context-overflow 400 without masking other client errors."""
 
+        details = cls._context_details(response)
+        if details is None:
+            return None
+        return details[0] - details[1]
+
+    @classmethod
+    def _context_details(cls, response: httpx.Response) -> tuple[int, int] | None:
+
         try:
             body = response.json()
         except ValueError:
@@ -187,7 +231,7 @@ class OpenAICompatibleTextGenerator:
         match = cls._CONTEXT_LIMIT_PATTERN.search(message)
         if match is None:
             return None
-        return int(match.group("context")) - int(match.group("input"))
+        return int(match.group("context")), int(match.group("input"))
 
     def _post_with_retry(
         self, payload: dict[str, Any]

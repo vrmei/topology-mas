@@ -7,7 +7,9 @@ from typing import Protocol
 
 from topology_mas.execution.aime import (
     AIME_BOUNDED_PROMPT_VERSION,
+    AIME_FULL_RATIONALE_PROMPT_VERSION,
     build_aime_bounded_node_messages,
+    build_aime_full_rationale_node_messages,
     parse_aime_answer,
 )
 from topology_mas.execution.answers import parse_numeric_answer
@@ -112,5 +114,41 @@ class AIMEBoundedNodeProtocol:
         return raw_text
 
 
+@dataclass(frozen=True)
+class AIMEFullRationaleNodeProtocol:
+    """One-pass AIME protocol broadcasting each raw completion verbatim."""
+
+    prompt_version: str = AIME_FULL_RATIONALE_PROMPT_VERSION
+    supported_oracle_types: frozenset[str] = frozenset({"aime_integer"})
+
+    def build_messages(
+        self,
+        task: TaskInstance,
+        *,
+        previous_output: str | None,
+        incoming_messages: tuple[MessageRecord, ...],
+    ) -> tuple[ChatMessage, ...]:
+        return build_aime_full_rationale_node_messages(
+            task,
+            previous_output=previous_output,
+            incoming_messages=incoming_messages,
+        )
+
+    @staticmethod
+    def parse_answer(
+        raw_text: str,
+        *,
+        finish_reason: str | None,
+    ) -> str | None:
+        if finish_reason == "length":
+            return None
+        return parse_aime_answer(raw_text)
+
+    @staticmethod
+    def public_message(raw_text: str) -> str:
+        return raw_text
+
+
 GSM8K_PROTOCOL = GSM8KNodeProtocol()
 AIME_BOUNDED_PROTOCOL = AIMEBoundedNodeProtocol()
+AIME_FULL_RATIONALE_PROTOCOL = AIMEFullRationaleNodeProtocol()

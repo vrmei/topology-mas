@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+
 from topology_mas.execution.answers import classify_numeric_answer
 from topology_mas.execution.assignments import InitialStateAssignment
 from topology_mas.execution.generation import TextGenerator
@@ -110,6 +112,7 @@ class SynchronousExecutionEngine:
         messages: list[MessageRecord] = []
         messages_for_round: dict[int, dict[int, list[MessageRecord]]] = {}
         previous_outputs: dict[int, str] = {}
+        previous_output_tokens: dict[int, int | None] = {}
         model_calls = 0
         backend_calls = 0
         state_replay_cache_hits = 0
@@ -134,6 +137,7 @@ class SynchronousExecutionEngine:
                     )
                 )
                 previous = previous_outputs.get(node_id)
+                previous_tokens = previous_output_tokens.get(node_id)
                 expected_prompt_messages = self.protocol.build_messages(
                     task,
                     previous_output=previous,
@@ -258,11 +262,52 @@ class SynchronousExecutionEngine:
                         "generator_called": generator_called,
                         "prompt_version": self.prompt_version,
                         "stochastic_stream_slot": stochastic_stream_slot,
+                        "communication_audit": {
+                            "receiver_id": node_id,
+                            "round": round_index,
+                            "own_previous_response_tokens": previous_tokens,
+                            "own_previous_response_chars": (
+                                len(previous) if previous is not None else None
+                            ),
+                            "own_previous_response_sha256": (
+                                hashlib.sha256(previous.encode("utf-8")).hexdigest()
+                                if previous is not None
+                                else None
+                            ),
+                            "incoming_responses": [
+                                {
+                                    "sender_id": message.sender,
+                                    "message_id": message.message_id,
+                                    "tokens": message.output_tokens,
+                                    "chars": len(message.raw_text),
+                                    "sha256": hashlib.sha256(
+                                        message.raw_text.encode("utf-8")
+                                    ).hexdigest(),
+                                }
+                                for message in incoming
+                            ],
+                            "total_prompt_tokens": completion.input_tokens,
+                            "generated_tokens": completion.output_tokens,
+                            "stop_reason": completion.finish_reason,
+                            "context_overflow": completion.metadata.get(
+                                "context_window_adjustment"
+                            )
+                            is not None,
+                            "context_truncation": completion.metadata.get(
+                                "context_window_adjustment"
+                            )
+                            is not None,
+                            "summarization": self.settings.generation_pipeline
+                            == "aime-private-solve-public-summary-v1",
+                            "message_compression": self.settings.generation_pipeline
+                            == "aime-private-solve-public-summary-v1",
+                        },
                     },
                 )
                 turns.append(turn)
                 round_outputs[node_id] = turn
                 previous_outputs[node_id] = completion.raw_text
+                previous_output_tokens[node_id] = completion.output_tokens
 
                 if generator_called:
                     if completion.input_tokens is None:
@@ -295,7 +340,16 @@ class SynchronousExecutionEngine:
                     output_tokens=source_turn.metadata.get(
                         "public_output_tokens", source_turn.output_tokens
                     ),
-                    metadata={"broadcast_copy": True},
+                    metadata={
+                        "broadcast_copy": True,
+                        "raw_output_sha256": hashlib.sha256(
+                            source_turn.raw_output.encode("utf-8")
+                        ).hexdigest(),
+                        "public_message_equals_raw_output": (
+                            self.protocol.public_message(source_turn.raw_output)
+                            == source_turn.raw_output
+                        ),
+                    },
                 )
                 messages.append(message)
                 next_round = messages_for_round.setdefault(round_index + 1, {})

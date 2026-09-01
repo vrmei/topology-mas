@@ -5,6 +5,7 @@ import pytest
 
 from topology_mas.execution import (
     ChatMessage,
+    ContextWindowOverflowError,
     InvalidTextCompletionError,
     OpenAICompatibleTextGenerator,
     TextGenerationRequest,
@@ -158,6 +159,40 @@ def test_adapter_retries_context_overflow_with_safe_output_limit() -> None:
         "requested_max_output_tokens": 64,
         "effective_max_output_tokens": 40,
     }
+
+
+def test_adapter_strict_context_mode_never_reduces_output_budget() -> None:
+    payloads: list[dict[str, object]] = []
+
+    def handler(http_request: httpx.Request) -> httpx.Response:
+        payloads.append(json.loads(http_request.content))
+        return httpx.Response(
+            400,
+            json={
+                "error": {
+                    "message": (
+                        "This model's maximum context length is 80 tokens and "
+                        "your request has 40 input tokens."
+                    )
+                }
+            },
+        )
+
+    with OpenAICompatibleTextGenerator(
+        model="model",
+        base_url="https://example.test/v1",
+        api_key="secret",
+        allow_context_window_adjustment=False,
+        transport=httpx.MockTransport(handler),
+    ) as generator, pytest.raises(ContextWindowOverflowError) as caught:
+        generator.generate(request())
+
+    assert len(payloads) == 1
+    assert payloads[0]["max_tokens"] == 64
+    assert caught.value.context_limit == 80
+    assert caught.value.input_tokens == 40
+    assert caught.value.requested_max_output_tokens == 64
+    assert caught.value.request_id == "req-1"
 
 
 def test_adapter_parses_nested_vllm_context_error() -> None:
