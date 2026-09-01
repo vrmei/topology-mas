@@ -45,6 +45,13 @@ def test_task_cluster_bootstrap_is_reproducible() -> None:
     assert first[0] <= transitions().paired_delta.mean() <= first[1]
 
 
+def test_json_safe_replaces_nonfinite_values() -> None:
+    assert module.json_safe({"value": float("nan"), "nested": [float("inf")]}) == {
+        "value": None,
+        "nested": [None],
+    }
+
+
 @pytest.mark.parametrize(
     ("rate", "expected"),
     [

@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 from collections import Counter
 from pathlib import Path
 from statistics import fmean, pstdev
@@ -205,6 +206,58 @@ def bootstrap_delta(
     return float(low), float(high)
 
 
+def bootstrap_band_difference(
+    frame: pd.DataFrame,
+    *,
+    first_band: str,
+    second_band: str,
+    samples: int,
+    seed: int,
+) -> dict[str, float | str]:
+    first = frame.loc[frame.difficulty_band == first_band]
+    second = frame.loc[frame.difficulty_band == second_band]
+    first_tasks = sorted(first.task_id.unique())
+    second_tasks = sorted(second.task_id.unique())
+    first_by_task = {
+        task_id: first.loc[first.task_id == task_id, "paired_delta"].to_numpy(dtype=float)
+        for task_id in first_tasks
+    }
+    second_by_task = {
+        task_id: second.loc[second.task_id == task_id, "paired_delta"].to_numpy(dtype=float)
+        for task_id in second_tasks
+    }
+    rng = np.random.default_rng(seed)
+    estimates = np.empty(samples, dtype=float)
+    for index in range(samples):
+        selected_first = rng.choice(first_tasks, size=len(first_tasks), replace=True)
+        selected_second = rng.choice(second_tasks, size=len(second_tasks), replace=True)
+        first_mean = np.concatenate(
+            [first_by_task[task] for task in selected_first]
+        ).mean()
+        second_mean = np.concatenate(
+            [second_by_task[task] for task in selected_second]
+        ).mean()
+        estimates[index] = first_mean - second_mean
+    low, high = np.quantile(estimates, [0.025, 0.975])
+    return {
+        "first_band": first_band,
+        "second_band": second_band,
+        "observed_difference": float(first.paired_delta.mean() - second.paired_delta.mean()),
+        "bootstrap_95_low": float(low),
+        "bootstrap_95_high": float(high),
+    }
+
+
+def json_safe(value: Any) -> Any:
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    if isinstance(value, dict):
+        return {key: json_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [json_safe(item) for item in value]
+    return value
+
+
 def main() -> None:
     args = parse_args()
     batch = load_complete_batch(args.batch_dir)
@@ -313,14 +366,24 @@ def main() -> None:
     edge_frame.to_csv(output / "edge_level_metrics.csv", index=False, lineterminator="\n")
     task_frame.to_csv(output / "task_metrics.csv", index=False, lineterminator="\n")
     band_frame.to_csv(output / "difficulty_band_metrics.csv", index=False, lineterminator="\n")
-    summary = {
+    summary = json_safe({
         "analysis_version": ANALYSIS_VERSION,
         "bootstrap_samples": args.bootstrap_samples,
         "bootstrap_seed": args.bootstrap_seed,
         "overall": overall,
         "edge_levels": edge_frame.to_dict(orient="records"),
         "difficulty_bands": band_frame.to_dict(orient="records"),
-    }
+        "difficulty_band_pairwise_differences": [
+            bootstrap_band_difference(
+                frame,
+                first_band="informative",
+                second_band=other,
+                samples=args.bootstrap_samples,
+                seed=args.bootstrap_seed + offset,
+            )
+            for other, offset in (("floor", 101), ("ceiling", 102))
+        ],
+    })
     (output / "summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
