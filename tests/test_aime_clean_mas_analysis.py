@@ -52,6 +52,114 @@ def test_json_safe_replaces_nonfinite_values() -> None:
     }
 
 
+def crossed_frame(*, edge_count: int, values: list[list[float]]) -> pd.DataFrame:
+    rows = []
+    for graph_index, graph_values in enumerate(values):
+        for task_index, value in enumerate(graph_values):
+            rows.append(
+                {
+                    "graph_id": f"g-{edge_count}-{graph_index}",
+                    "task_id": f"t-{task_index}",
+                    "edge_count": edge_count,
+                    "score": value,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def test_hierarchical_bootstrap_is_reproducible_for_crossed_design() -> None:
+    frame = crossed_frame(edge_count=4, values=[[0, 1, 1], [1, 0, 1]])
+
+    first = module.hierarchical_bootstrap_mean(
+        frame, value="score", samples=500, seed=9
+    )
+    second = module.hierarchical_bootstrap_mean(
+        frame, value="score", samples=500, seed=9
+    )
+
+    assert first == second
+    assert first[0] <= frame.score.mean() <= first[1]
+
+
+def test_group_difference_preserves_paired_task_axis() -> None:
+    lower = crossed_frame(edge_count=4, values=[[0, 0, 0], [0, 0, 0]])
+    higher = crossed_frame(edge_count=8, values=[[1, 1, 1], [1, 1, 1]])
+
+    low, high = module.bootstrap_group_difference(
+        higher, lower, value="score", samples=100, seed=3
+    )
+
+    assert low == pytest.approx(1.0)
+    assert high == pytest.approx(1.0)
+
+
+def test_density_slope_reports_probability_direction() -> None:
+    frame = pd.concat(
+        [
+            crossed_frame(edge_count=4, values=[[0, 0, 0], [0, 0, 0]]),
+            crossed_frame(edge_count=8, values=[[1, 1, 1], [1, 1, 1]]),
+            crossed_frame(edge_count=12, values=[[2, 2, 2], [2, 2, 2]]),
+        ],
+        ignore_index=True,
+    )
+
+    result = module.bootstrap_density_slope(
+        frame,
+        value="score",
+        edge_counts=(4, 8, 12),
+        samples=100,
+        seed=4,
+    )
+
+    assert result["observed_slope_per_edge"] == pytest.approx(0.25)
+    assert result["bootstrap_probability_positive"] == pytest.approx(1.0)
+
+
+def test_conditional_bootstrap_handles_crossed_denominators() -> None:
+    frame = crossed_frame(edge_count=4, values=[[1, 1, 0], [1, 0, 0]])
+    frame["initial_state"] = ["C", "C", "O", "C", "O", "O"]
+    frame["final_state"] = ["C", "O", "C", "C", "O", "C"]
+
+    low, high = module.hierarchical_bootstrap_conditional_rate(
+        frame,
+        initial_state="C",
+        final_state="C",
+        samples=500,
+        seed=5,
+    )
+
+    observed = module.conditional_rate(frame, "C", "C")
+    assert observed is not None
+    assert low <= observed <= high
+
+
+def test_structure_permutation_detects_graph_fixed_signal() -> None:
+    rows = []
+    for task in range(8):
+        for graph, value in (("g-low", 0.0), ("g-high", 1.0)):
+            rows.append(
+                {
+                    "task_id": f"t-{task}",
+                    "graph_id": graph,
+                    "edge_count": 4,
+                    "score": value,
+                }
+            )
+    frame = pd.DataFrame(rows)
+
+    result = module.permutation_structure_test(
+        frame,
+        value="score",
+        reduced_columns=("task_id",),
+        full_columns=("task_id", "graph_id"),
+        permutations=499,
+        seed=6,
+    )
+
+    assert result["partial_r_squared"] == pytest.approx(1.0)
+    assert result["permutation_p_value"] <= 0.01
+
+
 @pytest.mark.parametrize(
     ("rate", "expected"),
     [
