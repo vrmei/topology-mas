@@ -44,7 +44,7 @@ def main() -> None:
     total_messages = 0
     model_calls = 0
     backend_calls = 0
-    example = None
+    examples: dict[int, dict[str, Any]] = {}
     for stored in batch.runs:
         trace = stored.trace
         turns = {turn_key(turn): turn for turn in trace.turns}
@@ -96,8 +96,16 @@ def main() -> None:
                             "error": "incoming_not_verbatim",
                         }
                     )
-            if example is None and turn.round_index in (1, 2) and incoming:
-                example = {
+            if (
+                turn.round_index in (1, 2)
+                and incoming
+                and (
+                    turn.round_index not in examples
+                    or len(incoming)
+                    > len(examples[turn.round_index]["incoming_responses"])
+                )
+            ):
+                examples[turn.round_index] = {
                     "run_id": trace.run_id,
                     "task_id": trace.task_id,
                     "graph_id": trace.graph_id,
@@ -155,7 +163,7 @@ def main() -> None:
         "full_raw_peer_responses": True,
         "failure_count": len(failures),
         "failures": failures,
-        "example_file": "prompt_audit_example.json" if example is not None else None,
+        "example_file": "prompt_audit_examples.json" if examples else None,
     }
     if failures or not report["one_physical_call_per_node_update"]:
         report["no_summarization"] = False
@@ -167,9 +175,9 @@ def main() -> None:
         json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-    if example is not None:
-        (args.output_dir / "prompt_audit_example.json").write_text(
-            json.dumps(example, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+    if examples:
+        (args.output_dir / "prompt_audit_examples.json").write_text(
+            json.dumps(examples, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
     print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
