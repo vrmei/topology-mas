@@ -1,0 +1,123 @@
+{
+  "base_graph_collection_fingerprint": "06245d98b0ab4b10bb1e42aaaa5bca3e8929a3d34571157c2bea6c4bb3522a03",
+  "cross_graph_generation_reuse": false,
+  "horizon": 3,
+  "logical_node_calls_per_task_graph": {
+    "g-n5-m12-245b8a7d712cb4a0": 15,
+    "g-n5-m12-aa67d00fd87be761": 15,
+    "g-n5-m4-c86f6be403cf7523": 14,
+    "g-n5-m4-fc174fd4cac969a2": 16,
+    "g-n5-m8-098c132ef3277e03": 13,
+    "g-n5-m8-8cbea459f4a9f71d": 14
+  },
+  "new_graph_collection_fingerprint": "c0a26bee7f341d778df8c594a06c9190bbf52834a07b34d1973add977b33c642",
+  "new_graph_count": 6,
+  "new_graphs_lf_sha256": "c0a26bee7f341d778df8c594a06c9190bbf52834a07b34d1973add977b33c642",
+  "node_count": 5,
+  "preparation_version": "aime-clean-mas-n5-density-extension-v1",
+  "readout_node": 4,
+  "rooted_isomorphism_policy": "readout-fixed canonical nonisomorphism",
+  "round_zero_policy": "independent_per_graph_run",
+  "schema_version": 1,
+  "strata": [
+    {
+      "base_graph_ids": [
+        "g-n5-m4-020c02ee23fd10e6",
+        "g-n5-m4-8ace11eb98f60ea5",
+        "g-n5-m4-e6b58e28f5d141e8"
+      ],
+      "candidate_config": {
+        "edge_count": 4,
+        "graph_count": 100,
+        "max_attempts_per_graph": 100000,
+        "max_rounds": 3,
+        "node_count": 5,
+        "readout_node": 4,
+        "seed": 20260924
+      },
+      "edge_count": 4,
+      "new_graph_ids": [
+        "g-n5-m4-fc174fd4cac969a2",
+        "g-n5-m4-c86f6be403cf7523"
+      ]
+    },
+    {
+      "base_graph_ids": [
+        "g-n5-m8-d7ed48430d5f1b67",
+        "g-n5-m8-7f3a9ce5d54de331",
+        "g-n5-m8-9970b4b974e58087"
+      ],
+      "candidate_config": {
+        "edge_count": 8,
+        "graph_count": 100,
+        "max_attempts_per_graph": 100000,
+        "max_rounds": 3,
+        "node_count": 5,
+        "readout_node": 4,
+        "seed": 20260928
+      },
+      "edge_count": 8,
+      "new_graph_ids": [
+        "g-n5-m8-098c132ef3277e03",
+        "g-n5-m8-8cbea459f4a9f71d"
+      ]
+    },
+    {
+      "base_graph_ids": [
+        "g-n5-m12-e751609d27011f71",
+        "g-n5-m12-b7994e50c3403f63",
+        "g-n5-m12-c2d302af32c23635"
+      ],
+      "candidate_config": {
+        "edge_count": 12,
+        "graph_count": 100,
+        "max_attempts_per_graph": 100000,
+        "max_rounds": 3,
+        "node_count": 5,
+        "readout_node": 4,
+        "seed": 20260932
+      },
+      "edge_count": 12,
+      "new_graph_ids": [
+        "g-n5-m12-aa67d00fd87be761",
+        "g-n5-m12-245b8a7d712cb4a0"
+      ]
+    }
+  ],
+  "task_count": 30,
+  "task_ids": [
+    "2026_AIME_I_P01",
+    "2026_AIME_I_P02",
+    "2026_AIME_I_P03",
+    "2026_AIME_I_P04",
+    "2026_AIME_I_P05",
+    "2026_AIME_I_P06",
+    "2026_AIME_I_P07",
+    "2026_AIME_I_P08",
+    "2026_AIME_I_P09",
+    "2026_AIME_I_P10",
+    "2026_AIME_I_P11",
+    "2026_AIME_I_P12",
+    "2026_AIME_I_P13",
+    "2026_AIME_I_P14",
+    "2026_AIME_I_P15",
+    "2026_AIME_II_P01",
+    "2026_AIME_II_P02",
+    "2026_AIME_II_P03",
+    "2026_AIME_II_P04",
+    "2026_AIME_II_P05",
+    "2026_AIME_II_P06",
+    "2026_AIME_II_P07",
+    "2026_AIME_II_P08",
+    "2026_AIME_II_P09",
+    "2026_AIME_II_P10",
+    "2026_AIME_II_P11",
+    "2026_AIME_II_P12",
+    "2026_AIME_II_P13",
+    "2026_AIME_II_P14",
+    "2026_AIME_II_P15"
+  ],
+  "total_planned_backend_calls": 5220,
+  "total_planned_clean_runs": 180,
+  "total_planned_logical_model_calls": 2610
+}
