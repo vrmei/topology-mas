@@ -278,6 +278,7 @@ def main() -> None:
                 SinglePassDualChannelGenerator(
                     backend,
                     answer_parser=protocol.answer_parser,
+                    summary_answer_parser=protocol.summary_answer_parser,
                     token_counter=token_counter,
                     max_public_tokens=protocol.max_public_tokens,
                     strict_validation=True,

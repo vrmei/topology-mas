@@ -31,6 +31,7 @@ _DUAL_CHANNEL = re.compile(
     r"<PUBLIC_SUMMARY>\s*(?P<summary>.*?)\s*</PUBLIC_SUMMARY>\s*$",
     re.DOTALL,
 )
+_AIME_SUMMARY_INTEGER = re.compile(r"(?<!\d)(\d{1,3})(?!\d)")
 
 
 class TokenCounter(Protocol):
@@ -118,13 +119,14 @@ def validate_dual_channel_output(
     raw_text: str,
     *,
     answer_parser: AnswerParser,
+    summary_answer_parser: AnswerParser | None = None,
     token_counter: TokenCounter,
     max_public_tokens: int,
     request_id: str | None = None,
 ) -> tuple[DualChannelParts, str | None, str | None, int, int]:
     parts = parse_dual_channel_output(raw_text)
     full_answer = answer_parser(parts.full_solution)
-    summary_answer = answer_parser(parts.public_summary)
+    summary_answer = (summary_answer_parser or answer_parser)(parts.public_summary)
     full_tokens = token_counter(parts.full_solution)
     summary_tokens = token_counter(parts.public_summary)
     if summary_tokens > max_public_tokens:
@@ -199,6 +201,7 @@ class ScalableDualChannelNodeProtocol:
     """Execution protocol that retains local full work and broadcasts only summaries."""
 
     answer_parser: AnswerParser
+    summary_answer_parser: AnswerParser | None
     token_counter: TokenCounter
     supported_oracle_types: frozenset[str]
     max_public_tokens: int = SCALABLE_PUBLIC_SUMMARY_MAX_TOKENS
@@ -227,6 +230,7 @@ class ScalableDualChannelNodeProtocol:
         parts, _, _, _, _ = validate_dual_channel_output(
             raw_text,
             answer_parser=self.answer_parser,
+            summary_answer_parser=self.summary_answer_parser,
             token_counter=self.token_counter,
             max_public_tokens=self.max_public_tokens,
         )
@@ -261,6 +265,7 @@ class ScalableDualChannelNodeProtocol:
         validate_dual_channel_output(
             raw_text,
             answer_parser=self.answer_parser,
+            summary_answer_parser=self.summary_answer_parser,
             token_counter=self.token_counter,
             max_public_tokens=self.max_public_tokens,
         )
@@ -321,6 +326,7 @@ class SinglePassDualChannelGenerator:
         backend: TextGenerator,
         *,
         answer_parser: AnswerParser,
+        summary_answer_parser: AnswerParser | None = None,
         token_counter: TokenCounter,
         max_public_tokens: int = SCALABLE_PUBLIC_SUMMARY_MAX_TOKENS,
         strict_validation: bool = True,
@@ -329,6 +335,7 @@ class SinglePassDualChannelGenerator:
             raise ValueError("max_public_tokens must be positive")
         self.backend = backend
         self.answer_parser = answer_parser
+        self.summary_answer_parser = summary_answer_parser
         self.token_counter = token_counter
         self.max_public_tokens = max_public_tokens
         self.strict_validation = strict_validation
@@ -344,6 +351,7 @@ class SinglePassDualChannelGenerator:
                 validate_dual_channel_output(
                     completion.raw_text,
                     answer_parser=self.answer_parser,
+                    summary_answer_parser=self.summary_answer_parser,
                     token_counter=self.token_counter,
                     max_public_tokens=self.max_public_tokens,
                     request_id=request.request_id,
@@ -393,6 +401,7 @@ class SinglePassDualChannelGenerator:
 def scalable_gsm8k_protocol(token_counter: TokenCounter) -> ScalableDualChannelNodeProtocol:
     return ScalableDualChannelNodeProtocol(
         answer_parser=parse_numeric_answer,
+        summary_answer_parser=None,
         token_counter=token_counter,
         supported_oracle_types=frozenset({"numeric"}),
     )
@@ -401,6 +410,25 @@ def scalable_gsm8k_protocol(token_counter: TokenCounter) -> ScalableDualChannelN
 def scalable_aime_protocol(token_counter: TokenCounter) -> ScalableDualChannelNodeProtocol:
     return ScalableDualChannelNodeProtocol(
         answer_parser=parse_aime_answer,
+        summary_answer_parser=parse_aime_summary_answer,
         token_counter=token_counter,
         supported_oracle_types=frozenset({"aime_integer"}),
     )
+
+
+def parse_aime_summary_answer(text: str) -> str | None:
+    """Parse a concise AIME summary while keeping full-solution grading strict.
+
+    Qwen often states the final integer at the end of an otherwise valid public
+    summary without repeating the requested ``FINAL_ANSWER`` marker.  The summary
+    channel is not used for grading, so the last standalone AIME-range integer is
+    sufficient for the channel-consistency audit.
+    """
+
+    strict = parse_aime_answer(text)
+    if strict is not None:
+        return strict
+    if "FINAL_ANSWER: UNPARSED" in text:
+        return None
+    candidates = _AIME_SUMMARY_INTEGER.findall(text)
+    return str(int(candidates[-1])) if candidates else None

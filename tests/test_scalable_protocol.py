@@ -6,6 +6,7 @@ from topology_mas.execution.scalable_protocol import (
     DualChannelValidationError,
     SinglePassDualChannelGenerator,
     freeze_attack_public_summary,
+    parse_aime_summary_answer,
     parse_dual_channel_output,
     scalable_gsm8k_protocol,
 )
@@ -229,6 +230,21 @@ def test_summary_budget_is_frozen_at_2048_tokens() -> None:
     assert SCALABLE_PUBLIC_SUMMARY_MAX_TOKENS == 2048
     assert protocol.max_public_tokens == 2048
     assert "summary-only-2048-v1" in protocol.prompt_version
+
+
+@pytest.mark.parametrize(
+    ("summary", "expected"),
+    [
+        ("Therefore $m+n=252+25=277$.", "277"),
+        ("The requested integer is \\boxed{028}.", "28"),
+        ("FINAL_ANSWER: \\boxed{314}", "314"),
+        ("FINAL_ANSWER: UNPARSED", None),
+    ],
+)
+def test_aime_summary_parser_accepts_concise_final_integer(
+    summary: str, expected: str | None
+) -> None:
+    assert parse_aime_summary_answer(summary) == expected
 
 
 def frozen_attack() -> AdversarialAnswer:
