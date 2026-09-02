@@ -114,21 +114,29 @@ def clustered_bootstrap_rates(
     frame: pd.DataFrame,
     *,
     group_columns: list[str],
+    outcome_column: str = "final_readout_correct",
+    rate_name: str = "correction_rate",
     samples: int,
     seed: int,
 ) -> pd.DataFrame:
     """Task-cluster bootstrap conditional rates and retain cell support."""
 
-    observed = (
+    support = (
         frame.groupby(group_columns, sort=True, dropna=False)
         .agg(
-            cases=("final_readout_correct", "size"),
+            cases=(outcome_column, "size"),
             tasks=("task_id", "nunique"),
             graphs=("graph_id", "nunique"),
-            correction_rate=("final_readout_correct", "mean"),
         )
         .reset_index()
     )
+    rates = (
+        frame.groupby(group_columns, sort=True, dropna=False)[outcome_column]
+        .mean()
+        .rename(rate_name)
+        .reset_index()
+    )
+    observed = support.merge(rates, on=group_columns, validate="one_to_one")
     tasks = frame.task_id.unique()
     rng = np.random.default_rng(seed)
     keys = list(observed[group_columns].itertuples(index=False, name=None))
@@ -140,7 +148,7 @@ def clustered_bootstrap_rates(
         key = tuple(getattr(row, column) for column in group_columns)
         group_index = key_index[key]
         column_index = task_index[row.task_id]
-        numerators[group_index, column_index] += float(row.final_readout_correct)
+        numerators[group_index, column_index] += float(getattr(row, outcome_column))
         denominators[group_index, column_index] += 1.0
     weights = rng.multinomial(
         len(tasks), np.full(len(tasks), 1.0 / len(tasks)), size=samples
@@ -206,6 +214,7 @@ def within_group_correlations(
     *,
     strata: list[str],
     predictor: str,
+    outcome_column: str = "final_readout_correct",
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Compute descriptive within-stratum rank associations.
 
@@ -216,10 +225,10 @@ def within_group_correlations(
     rows: list[dict[str, object]] = []
     for key, group in frame.groupby(strata, sort=True):
         key_tuple = key if isinstance(key, tuple) else (key,)
-        if group[predictor].nunique() < 2 or group.final_readout_correct.nunique() < 2:
+        if group[predictor].nunique() < 2 or group[outcome_column].nunique() < 2:
             continue
         correlation = float(
-            spearmanr(group[predictor], group.final_readout_correct).statistic
+            spearmanr(group[predictor], group[outcome_column]).statistic
         )
         if not np.isfinite(correlation):
             continue

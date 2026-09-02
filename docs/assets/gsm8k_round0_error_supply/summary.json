@@ -1,0 +1,413 @@
+{
+  "audit": {
+    "analysis_version": "round0-error-supply-v1",
+    "estimand": "P(final readout non-correct | Round-0 readout correct, observed non-correct-peer supply)",
+    "source_clean_runs": 6600,
+    "initially_correct_readout_runs": 5372,
+    "tasks": 50,
+    "graphs": 132,
+    "sizes": [
+      5,
+      8
+    ],
+    "noncorrect_definition": "target + other + unparsed",
+    "parsed_wrong_definition": "target + other; excludes unparsed",
+    "reachable_h3_equals_total_noncorrect_supply": true,
+    "bootstrap": {
+      "unit": "task",
+      "samples": 20000,
+      "seed": 20260904
+    },
+    "claim_limit": "This observational conditional analysis establishes association, not the causal effect of injecting an additional erroneous peer message."
+  },
+  "error_supply_curve": [
+    {
+      "n": 5,
+      "k_noncorrect_total": 0,
+      "cases": 1848,
+      "tasks": 45,
+      "graphs": 61,
+      "corruption_rate": 0.013528138528138528,
+      "ci95_low": 0.0074528190510543746,
+      "ci95_high": 0.02067951316635938,
+      "valid_bootstrap_draws": 20000
+    },
+    {
+      "n": 5,
+      "k_noncorrect_total": 1,
+      "cases": 409,
+      "tasks": 41,
+      "graphs": 61,
+      "corruption_rate": 0.06601466992665037,
+      "ci95_low": 0.043243243243243246,
+      "ci95_high": 0.09036188485721307,
+      "valid_bootstrap_draws": 20000
+    },
+    {
+      "n": 5,
+      "k_noncorrect_total": 2,
+      "cases": 147,
+      "tasks": 23,
+      "graphs": 57,
+      "corruption_rate": 0.2653061224489796,
+      "ci95_low": 0.19548872180451127,
+      "ci95_high": 0.3316831683168317,
+      "valid_bootstrap_draws": 20000
+    },
+    {
+      "n": 5,
+      "k_noncorrect_total": 3,
+      "cases": 54,
+      "tasks": 16,
+      "graphs": 38,
+      "corruption_rate": 0.42592592592592593,
+      "ci95_low": 0.31816378066378065,
+      "ci95_high": 0.5636363636363636,
+      "valid_bootstrap_draws": 20000
+    },
+    {
+      "n": 5,
+      "k_noncorrect_total": 4,
+      "cases": 19,
+      "tasks": 9,
+      "graphs": 16,
+      "corruption_rate": 0.6842105263157895,
+      "ci95_low": 0.4117647058823529,
+      "ci95_high": 0.88,
+      "valid_bootstrap_draws": 19997
+    },
+    {
+      "n": 8,
+      "k_noncorrect_total": 0,
+      "cases": 1895,
+      "tasks": 45,
+      "graphs": 71,
+      "corruption_rate": 0.0036939313984168864,
+      "ci95_low": 0.00108990341519593,
+      "ci95_high": 0.006960585688227507,
+      "valid_bootstrap_draws": 20000
+    },
+    {
+      "n": 8,
+      "k_noncorrect_total": 1,
+      "cases": 479,
+      "tasks": 39,
+      "graphs": 71,
+      "corruption_rate": 0.05219206680584551,
+      "ci95_low": 0.02159827213822894,
+      "ci95_high": 0.08763021113574229,
+      "valid_bootstrap_draws": 20000
+    },
+    {
+      "n": 8,
+      "k_noncorrect_total": 2,
+      "cases": 270,
+      "tasks": 27,
+      "graphs": 71,
+      "corruption_rate": 0.05925925925925926,
+      "ci95_low": 0.03389830508474576,
+      "ci95_high": 0.08547087980173475,
+      "valid_bootstrap_draws": 20000
+    },
+    {
+      "n": 8,
+      "k_noncorrect_total": 3,
+      "cases": 145,
+      "tasks": 19,
+      "graphs": 62,
+      "corruption_rate": 0.10344827586206896,
+      "ci95_low": 0.05555555555555555,
+      "ci95_high": 0.16154040404040387,
+      "valid_bootstrap_draws": 20000
+    },
+    {
+      "n": 8,
+      "k_noncorrect_total": 4,
+      "cases": 47,
+      "tasks": 14,
+      "graphs": 38,
+      "corruption_rate": 0.1702127659574468,
+      "ci95_low": 0.09090909090909091,
+      "ci95_high": 0.23809523809523808,
+      "valid_bootstrap_draws": 20000
+    },
+    {
+      "n": 8,
+      "k_noncorrect_total": 5,
+      "cases": 29,
+      "tasks": 8,
+      "graphs": 26,
+      "corruption_rate": 0.27586206896551724,
+      "ci95_low": 0.13043478260869565,
+      "ci95_high": 0.38,
+      "valid_bootstrap_draws": 19993
+    },
+    {
+      "n": 8,
+      "k_noncorrect_total": 6,
+      "cases": 19,
+      "tasks": 8,
+      "graphs": 19,
+      "corruption_rate": 0.47368421052631576,
+      "ci95_low": 0.18181818181818182,
+      "ci95_high": 0.7,
+      "valid_bootstrap_draws": 19995
+    },
+    {
+      "n": 8,
+      "k_noncorrect_total": 7,
+      "cases": 11,
+      "tasks": 6,
+      "graphs": 10,
+      "corruption_rate": 1.0,
+      "ci95_low": 1.0,
+      "ci95_high": 1.0,
+      "valid_bootstrap_draws": 19965
+    }
+  ],
+  "parsed_wrong_supply_curve": [
+    {
+      "n": 5,
+      "k_parsed_wrong_total": 0,
+      "cases": 1931,
+      "tasks": 45,
+      "graphs": 61,
+      "corruption_rate": 0.01605385810460901,
+      "ci95_low": 0.008786359824442657,
+      "ci95_high": 0.024762953991871735,
+      "valid_bootstrap_draws": 20000
+    },
+    {
+      "n": 5,
+      "k_parsed_wrong_total": 1,
+      "cases": 372,
+      "tasks": 35,
+      "graphs": 61,
+      "corruption_rate": 0.07258064516129033,
+      "ci95_low": 0.04559270516717325,
+      "ci95_high": 0.10057471264367816,
+      "valid_bootstrap_draws": 20000
+    },
+    {
+      "n": 5,
+      "k_parsed_wrong_total": 2,
+      "cases": 122,
+      "tasks": 23,
+      "graphs": 58,
+      "corruption_rate": 0.32786885245901637,
+      "ci95_low": 0.26446043507172035,
+      "ci95_high": 0.38461538461538464,
+      "valid_bootstrap_draws": 20000
+    },
+    {
+      "n": 5,
+      "k_parsed_wrong_total": 3,
+      "cases": 41,
+      "tasks": 12,
+      "graphs": 31,
+      "corruption_rate": 0.5609756097560976,
+      "ci95_low": 0.4124816176470588,
+      "ci95_high": 0.7777777777777778,
+      "valid_bootstrap_draws": 20000
+    },
+    {
+      "n": 5,
+      "k_parsed_wrong_total": 4,
+      "cases": 11,
+      "tasks": 6,
+      "graphs": 10,
+      "corruption_rate": 0.5454545454545454,
+      "ci95_low": 0.2,
+      "ci95_high": 0.8333333333333334,
+      "valid_bootstrap_draws": 19970
+    },
+    {
+      "n": 8,
+      "k_parsed_wrong_total": 0,
+      "cases": 2021,
+      "tasks": 45,
+      "graphs": 71,
+      "corruption_rate": 0.004948045522018802,
+      "ci95_low": 0.0021287919105907396,
+      "ci95_high": 0.008301101723706655,
+      "valid_bootstrap_draws": 20000
+    },
+    {
+      "n": 8,
+      "k_parsed_wrong_total": 1,
+      "cases": 442,
+      "tasks": 33,
+      "graphs": 71,
+      "corruption_rate": 0.05656108597285068,
+      "ci95_low": 0.022779043280182234,
+      "ci95_high": 0.09692701548704585,
+      "valid_bootstrap_draws": 20000
+    },
+    {
+      "n": 8,
+      "k_parsed_wrong_total": 2,
+      "cases": 241,
+      "tasks": 26,
+      "graphs": 70,
+      "corruption_rate": 0.08298755186721991,
+      "ci95_low": 0.05357142857142857,
+      "ci95_high": 0.11212192013593876,
+      "valid_bootstrap_draws": 20000
+    },
+    {
+      "n": 8,
+      "k_parsed_wrong_total": 3,
+      "cases": 110,
+      "tasks": 19,
+      "graphs": 52,
+      "corruption_rate": 0.09090909090909091,
+      "ci95_low": 0.03389830508474576,
+      "ci95_high": 0.16129032258064516,
+      "valid_bootstrap_draws": 20000
+    },
+    {
+      "n": 8,
+      "k_parsed_wrong_total": 4,
+      "cases": 33,
+      "tasks": 11,
+      "graphs": 28,
+      "corruption_rate": 0.24242424242424243,
+      "ci95_low": 0.10714285714285714,
+      "ci95_high": 0.35135135135135137,
+      "valid_bootstrap_draws": 20000
+    },
+    {
+      "n": 8,
+      "k_parsed_wrong_total": 5,
+      "cases": 24,
+      "tasks": 8,
+      "graphs": 20,
+      "corruption_rate": 0.2916666666666667,
+      "ci95_low": 0.14285714285714285,
+      "ci95_high": 0.45454545454545453,
+      "valid_bootstrap_draws": 19995
+    },
+    {
+      "n": 8,
+      "k_parsed_wrong_total": 6,
+      "cases": 16,
+      "tasks": 6,
+      "graphs": 16,
+      "corruption_rate": 0.6875,
+      "ci95_low": 0.5454545454545454,
+      "ci95_high": 1.0,
+      "valid_bootstrap_draws": 19975
+    },
+    {
+      "n": 8,
+      "k_parsed_wrong_total": 7,
+      "cases": 8,
+      "tasks": 5,
+      "graphs": 7,
+      "corruption_rate": 1.0,
+      "ci95_low": 1.0,
+      "ci95_high": 1.0,
+      "valid_bootstrap_draws": 19898
+    }
+  ],
+  "within_task_error_supply_summary": [
+    {
+      "n": 5,
+      "eligible_strata": 29,
+      "positive": 23,
+      "negative": 6,
+      "zero": 0,
+      "mean_spearman": 0.22124200807043587,
+      "median_spearman": 0.2010933249939455,
+      "positive_sign_test_p_one_sided": 0.0011578500270843506
+    },
+    {
+      "n": 8,
+      "eligible_strata": 26,
+      "positive": 22,
+      "negative": 4,
+      "zero": 0,
+      "mean_spearman": 0.22077319361677789,
+      "median_spearman": 0.20773000231393904,
+      "positive_sign_test_p_one_sided": 0.00026676058769226074
+    }
+  ],
+  "within_task_k_error_arrival_summary": [
+    {
+      "n": 5,
+      "eligible_strata": 32,
+      "positive": 13,
+      "negative": 19,
+      "zero": 0,
+      "mean_spearman": -0.039340478011893665,
+      "median_spearman": -0.16383674855461283,
+      "positive_sign_test_p_one_sided": 0.8923364251386374
+    },
+    {
+      "n": 8,
+      "eligible_strata": 28,
+      "positive": 8,
+      "negative": 20,
+      "zero": 0,
+      "mean_spearman": 0.011488456370340374,
+      "median_spearman": -0.10661385170722981,
+      "positive_sign_test_p_one_sided": 0.9937295243144035
+    }
+  ],
+  "difficulty_error_supply_link": [
+    {
+      "n": 5,
+      "difficulty_band": "ceiling",
+      "cases": 1840,
+      "tasks": 31,
+      "mean_k_noncorrect": 0.11358695652173913,
+      "probability_any_noncorrect_peer": 0.10217391304347827,
+      "corruption_rate": 0.02010869565217391
+    },
+    {
+      "n": 5,
+      "difficulty_band": "floor",
+      "cases": 11,
+      "tasks": 3,
+      "mean_k_noncorrect": 4.0,
+      "probability_any_noncorrect_peer": 1.0,
+      "corruption_rate": 0.7272727272727273
+    },
+    {
+      "n": 5,
+      "difficulty_band": "intermediate",
+      "cases": 626,
+      "tasks": 15,
+      "mean_k_noncorrect": 1.099041533546326,
+      "probability_any_noncorrect_peer": 0.6869009584664537,
+      "corruption_rate": 0.13099041533546327
+    },
+    {
+      "n": 8,
+      "difficulty_band": "ceiling",
+      "cases": 2022,
+      "tasks": 29,
+      "mean_k_noncorrect": 0.15974282888229477,
+      "probability_any_noncorrect_peer": 0.13748763600395647,
+      "corruption_rate": 0.00791295746785361
+    },
+    {
+      "n": 8,
+      "difficulty_band": "floor",
+      "cases": 7,
+      "tasks": 3,
+      "mean_k_noncorrect": 6.714285714285714,
+      "probability_any_noncorrect_peer": 1.0,
+      "corruption_rate": 0.8571428571428571
+    },
+    {
+      "n": 8,
+      "difficulty_band": "intermediate",
+      "cases": 866,
+      "tasks": 17,
+      "mean_k_noncorrect": 1.8568129330254042,
+      "probability_any_noncorrect_peer": 0.825635103926097,
+      "corruption_rate": 0.08891454965357967
+    }
+  ]
+}
