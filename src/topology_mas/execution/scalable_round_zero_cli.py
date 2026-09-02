@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import threading
+from contextlib import ExitStack
 from pathlib import Path
 
 from topology_mas.data.aime import load_aime_jsonl
@@ -20,7 +22,25 @@ from topology_mas.execution.scalable_round_zero import (
     ScalableRoundZeroPoolGenerator,
     ScalableRoundZeroPoolStore,
 )
+from topology_mas.execution.schemas import TextGenerationRequest, TextGenerationResult
 from topology_mas.models import AnswerState
+
+
+class RoundRobinTextGenerator:
+    """Spread concurrent requests deterministically over equivalent backends."""
+
+    def __init__(self, backends: tuple[OpenAICompatibleTextGenerator, ...]) -> None:
+        if not backends:
+            raise ValueError("at least one backend is required")
+        self.backends = backends
+        self._next_backend = 0
+        self._lock = threading.Lock()
+
+    def generate(self, request: TextGenerationRequest) -> TextGenerationResult:
+        with self._lock:
+            backend = self.backends[self._next_backend]
+            self._next_backend = (self._next_backend + 1) % len(self.backends)
+        return backend.generate(request)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -36,7 +56,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--expected-returned-model")
     parser.add_argument("--tokenizer", required=True)
     parser.add_argument("--tokenizer-cache-dir", type=Path)
-    parser.add_argument("--base-url", required=True)
+    parser.add_argument(
+        "--base-url",
+        action="append",
+        required=True,
+        help="OpenAI-compatible endpoint; repeat to load-balance over replicas",
+    )
     parser.add_argument("--api-key-env", default="OHMYGPT_API_KEY")
     parser.add_argument("--no-auth", action="store_true")
     parser.add_argument("--temperature", type=float, required=True)
@@ -90,15 +115,22 @@ def main() -> None:
         presence_penalty=args.presence_penalty,
         max_output_tokens=args.max_output_tokens,
     )
-    with OpenAICompatibleTextGenerator(
-        model=args.model,
-        expected_returned_model=args.expected_returned_model,
-        base_url=args.base_url,
-        api_key_env=None if args.no_auth else args.api_key_env,
-        timeout_seconds=args.timeout_seconds,
-        max_attempts=args.max_attempts,
-        allow_context_window_adjustment=False,
-    ) as backend:
+    with ExitStack() as stack:
+        backends = tuple(
+            stack.enter_context(
+                OpenAICompatibleTextGenerator(
+                    model=args.model,
+                    expected_returned_model=args.expected_returned_model,
+                    base_url=base_url,
+                    api_key_env=None if args.no_auth else args.api_key_env,
+                    timeout_seconds=args.timeout_seconds,
+                    max_attempts=args.max_attempts,
+                    allow_context_window_adjustment=False,
+                )
+            )
+            for base_url in args.base_url
+        )
+        backend = RoundRobinTextGenerator(backends)
         generator = SinglePassDualChannelGenerator(
             backend,
             answer_parser=protocol.answer_parser,
