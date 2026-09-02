@@ -1,0 +1,270 @@
+{
+  "audit": {
+    "analysis_version": "round0-correct-supply-v1",
+    "estimand": "P(final readout correct | Round-0 readout incorrect, observed correct-peer supply)",
+    "source_clean_cases": 6600,
+    "clean_task_graph_runs": 6600,
+    "initially_wrong_readout_runs": 1228,
+    "tasks": 50,
+    "graphs": 132,
+    "sizes": [
+      5,
+      8
+    ],
+    "round0_endpoint_match": true,
+    "all_nodes_reachable_within_horizon": true,
+    "reachable_h3_equals_total_correct_supply": true,
+    "bootstrap": {
+      "unit": "task",
+      "samples": 20000,
+      "seed": 20260903
+    },
+    "state_note": "Round-0 readout incorrect includes target, other, and unparsed states; in a clean run they are all simply non-correct outcomes.",
+    "claim_limit": "This observational conditional analysis establishes association, not the causal effect of injecting an additional correct peer message."
+  },
+  "correct_supply_curve": [
+    {
+      "n": 5,
+      "k_correct_total": 0,
+      "cases": 234,
+      "tasks": 9,
+      "graphs": 61,
+      "correction_rate": 0.01282051282051282,
+      "ci95_low": 0.0,
+      "ci95_high": 0.03076923076923077,
+      "valid_bootstrap_draws": 19999
+    },
+    {
+      "n": 5,
+      "k_correct_total": 1,
+      "cases": 68,
+      "tasks": 13,
+      "graphs": 41,
+      "correction_rate": 0.17647058823529413,
+      "ci95_low": 0.04878048780487805,
+      "ci95_high": 0.2916666666666667,
+      "valid_bootstrap_draws": 20000
+    },
+    {
+      "n": 5,
+      "k_correct_total": 2,
+      "cases": 74,
+      "tasks": 17,
+      "graphs": 44,
+      "correction_rate": 0.527027027027027,
+      "ci95_low": 0.42028985507246375,
+      "ci95_high": 0.64,
+      "valid_bootstrap_draws": 20000
+    },
+    {
+      "n": 5,
+      "k_correct_total": 3,
+      "cases": 102,
+      "tasks": 21,
+      "graphs": 51,
+      "correction_rate": 0.7941176470588235,
+      "ci95_low": 0.7073170731707317,
+      "ci95_high": 0.8673469387755102,
+      "valid_bootstrap_draws": 20000
+    },
+    {
+      "n": 5,
+      "k_correct_total": 4,
+      "cases": 95,
+      "tasks": 29,
+      "graphs": 47,
+      "correction_rate": 0.8526315789473684,
+      "ci95_low": 0.75,
+      "ci95_high": 0.9425287356321839,
+      "valid_bootstrap_draws": 20000
+    },
+    {
+      "n": 8,
+      "k_correct_total": 0,
+      "cases": 225,
+      "tasks": 7,
+      "graphs": 71,
+      "correction_rate": 0.017777777777777778,
+      "ci95_low": 0.0,
+      "ci95_high": 0.05660377358490566,
+      "valid_bootstrap_draws": 19990
+    },
+    {
+      "n": 8,
+      "k_correct_total": 1,
+      "cases": 61,
+      "tasks": 7,
+      "graphs": 44,
+      "correction_rate": 0.13114754098360656,
+      "ci95_low": 0.029411764705882353,
+      "ci95_high": 0.2441860465116279,
+      "valid_bootstrap_draws": 19991
+    },
+    {
+      "n": 8,
+      "k_correct_total": 2,
+      "cases": 44,
+      "tasks": 9,
+      "graphs": 34,
+      "correction_rate": 0.36363636363636365,
+      "ci95_low": 0.2727272727272727,
+      "ci95_high": 0.625,
+      "valid_bootstrap_draws": 20000
+    },
+    {
+      "n": 8,
+      "k_correct_total": 3,
+      "cases": 58,
+      "tasks": 15,
+      "graphs": 43,
+      "correction_rate": 0.5862068965517241,
+      "ci95_low": 0.41304347826086957,
+      "ci95_high": 0.7123287671232876,
+      "valid_bootstrap_draws": 20000
+    },
+    {
+      "n": 8,
+      "k_correct_total": 4,
+      "cases": 54,
+      "tasks": 13,
+      "graphs": 40,
+      "correction_rate": 0.7777777777777778,
+      "ci95_low": 0.6153846153846154,
+      "ci95_high": 0.9183673469387755,
+      "valid_bootstrap_draws": 20000
+    },
+    {
+      "n": 8,
+      "k_correct_total": 5,
+      "cases": 75,
+      "tasks": 16,
+      "graphs": 47,
+      "correction_rate": 0.8266666666666667,
+      "ci95_low": 0.7058823529411765,
+      "ci95_high": 0.9250093283582081,
+      "valid_bootstrap_draws": 20000
+    },
+    {
+      "n": 8,
+      "k_correct_total": 6,
+      "cases": 85,
+      "tasks": 25,
+      "graphs": 51,
+      "correction_rate": 0.9176470588235294,
+      "ci95_low": 0.86,
+      "ci95_high": 0.9716981132075472,
+      "valid_bootstrap_draws": 20000
+    },
+    {
+      "n": 8,
+      "k_correct_total": 7,
+      "cases": 53,
+      "tasks": 23,
+      "graphs": 38,
+      "correction_rate": 0.9433962264150944,
+      "ci95_low": 0.8775510204081632,
+      "ci95_high": 1.0,
+      "valid_bootstrap_draws": 20000
+    }
+  ],
+  "within_task_supply_summary": [
+    {
+      "n": 5,
+      "eligible_strata": 18,
+      "positive": 15,
+      "negative": 3,
+      "zero": 0,
+      "mean_spearman": 0.36253880455659404,
+      "median_spearman": 0.5081500844884748,
+      "positive_sign_test_p_one_sided": 0.0037689208984375
+    },
+    {
+      "n": 8,
+      "eligible_strata": 19,
+      "positive": 18,
+      "negative": 1,
+      "zero": 0,
+      "mean_spearman": 0.39370486848458947,
+      "median_spearman": 0.447213595499958,
+      "positive_sign_test_p_one_sided": 3.814697265625e-05
+    }
+  ],
+  "within_task_k_arrival_summary": [
+    {
+      "n": 5,
+      "eligible_strata": 14,
+      "positive": 10,
+      "negative": 4,
+      "zero": 0,
+      "mean_spearman": -0.010304447360716914,
+      "median_spearman": 0.15786893258332635,
+      "positive_sign_test_p_one_sided": 0.08978271484375
+    },
+    {
+      "n": 8,
+      "eligible_strata": 10,
+      "positive": 2,
+      "negative": 7,
+      "zero": 1,
+      "mean_spearman": -0.2599532109140286,
+      "median_spearman": -0.3547599377408083,
+      "positive_sign_test_p_one_sided": 0.98046875
+    }
+  ],
+  "difficulty_supply_link": [
+    {
+      "n": 5,
+      "difficulty_band": "ceiling",
+      "cases": 51,
+      "tasks": 16,
+      "mean_k_correct": 3.7450980392156863,
+      "probability_any_correct_peer": 1.0,
+      "correction_rate": 0.8431372549019608
+    },
+    {
+      "n": 5,
+      "difficulty_band": "floor",
+      "cases": 233,
+      "tasks": 4,
+      "mean_k_correct": 0.12446351931330472,
+      "probability_any_correct_peer": 0.11587982832618025,
+      "correction_rate": 0.012875536480686695
+    },
+    {
+      "n": 5,
+      "difficulty_band": "intermediate",
+      "cases": 289,
+      "tasks": 15,
+      "mean_k_correct": 2.359861591695502,
+      "probability_any_correct_peer": 0.903114186851211,
+      "correction_rate": 0.5882352941176471
+    },
+    {
+      "n": 8,
+      "difficulty_band": "ceiling",
+      "cases": 37,
+      "tasks": 13,
+      "mean_k_correct": 6.513513513513513,
+      "probability_any_correct_peer": 1.0,
+      "correction_rate": 0.9459459459459459
+    },
+    {
+      "n": 8,
+      "difficulty_band": "floor",
+      "cases": 277,
+      "tasks": 4,
+      "mean_k_correct": 0.24187725631768953,
+      "probability_any_correct_peer": 0.20216606498194944,
+      "correction_rate": 0.039711191335740074
+    },
+    {
+      "n": 8,
+      "difficulty_band": "intermediate",
+      "cases": 341,
+      "tasks": 17,
+      "mean_k_correct": 4.360703812316715,
+      "probability_any_correct_peer": 0.9882697947214076,
+      "correction_rate": 0.7272727272727273
+    }
+  ]
+}
