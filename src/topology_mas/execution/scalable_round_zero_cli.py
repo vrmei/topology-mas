@@ -45,7 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--min-p", type=float)
     parser.add_argument("--presence-penalty", type=float)
     parser.add_argument("--max-output-tokens", type=int, required=True)
-    parser.add_argument("--max-public-tokens", type=int, default=512)
+    parser.add_argument("--max-public-tokens", type=int, default=2048)
     parser.add_argument("--max-workers", type=int, default=1)
     parser.add_argument("--timeout-seconds", type=float, default=300.0)
     parser.add_argument("--max-attempts", type=int, default=3)

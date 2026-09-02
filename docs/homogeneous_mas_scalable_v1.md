@@ -40,6 +40,11 @@ be accidentally materialized as a cache hit.
 
 ## 2. Local full solution and public summary
 
+The communication representation is frozen as
+`summary-only-2048-v1`. It is not selected dynamically from current degree,
+prompt length, remaining context, or node type. Changing the budget requires a new
+named protocol version rather than an in-run fallback.
+
 One normal node call must return exactly:
 
 ```text
@@ -56,6 +61,13 @@ The next update receives:
 - the node's own previous `FULL_SOLUTION`;
 - only each predecessor's `PUBLIC_SUMMARY`.
 
+This gives the invariant:
+
+\[
+\text{self state}=\text{full response},\qquad
+\text{cross-node state}=\text{summary}\le 2048\text{ tokens}.
+\]
+
 The immutable prompt prefix is ordered as system instruction, problem, and stable
 instructions before dynamic local/peer state to support backend prefix caching.
 
@@ -63,7 +75,7 @@ instructions before dynamic local/peer state to support backend prefix caching.
 
 - either tag is absent, repeated, reordered, or unclosed;
 - the provider stops because of the output-length limit;
-- the public summary exceeds 512 tokens under the actual model tokenizer;
+- the public summary exceeds 2048 tokens under the actual model tokenizer;
 - the two channels have different parsed answers;
 - the full solution is unparsed but the summary invents a parseable answer.
 
@@ -79,6 +91,22 @@ failure at the communication boundary; it is never silently repaired or replaced
 The first implementation intentionally does not enable a second-call fallback. Its
 necessity will be decided from measured missing-tag, length-stop, and inconsistency
 rates on real model output.
+
+### Attack symmetry
+
+Fixed and adaptive attackers use the same channel boundary as normal nodes.
+
+- A fixed attack artifact freezes both `T_full` and `T_summary` before execution;
+  every attack round keeps the full text locally and broadcasts the same summary.
+- Round 0 of an adaptive attack starts from that frozen artifact.
+- At later rounds, an adaptive attacker may condition only on the original problem,
+  its own previous full attack response, and the peer summaries actually delivered
+  by the graph. It cannot inspect a peer's hidden full response.
+- The adaptive full response and summary must retain the frozen target answer.
+
+Every new trace distinguishes answer state from provenance. Node turns record
+`source_type = natural | fixed_attack | adaptive_attack`; cross-node messages record
+`message_type=summary` and `summary_source_response_id`.
 
 ## 3. Global READY scheduler
 

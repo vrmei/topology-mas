@@ -69,10 +69,12 @@ from topology_mas.execution.round_zero import (
 )
 from topology_mas.execution.scalable_protocol import (
     SCALABLE_DUAL_CHANNEL_PROMPT_VERSION,
+    SCALABLE_PUBLIC_SUMMARY_MAX_TOKENS,
     DualChannelValidationError,
     HuggingFaceTokenCounter,
     ScalableDualChannelNodeProtocol,
     SinglePassDualChannelGenerator,
+    freeze_attack_public_summary,
     parse_dual_channel_output,
     scalable_aime_protocol,
     scalable_gsm8k_protocol,
@@ -150,6 +152,7 @@ __all__ = [
     "SCALABLE_PROTOCOL_VERSION",
     "ROUND_ZERO_POOL_SCHEMA_VERSION",
     "SCALABLE_DUAL_CHANNEL_PROMPT_VERSION",
+    "SCALABLE_PUBLIC_SUMMARY_MAX_TOKENS",
     "ScalableRoundZeroPoolConfig",
     "ScalableRoundZeroPoolConflictError",
     "ScalableRoundZeroPoolGenerator",
@@ -165,6 +168,7 @@ __all__ = [
     "HuggingFaceTokenCounter",
     "ScalableDualChannelNodeProtocol",
     "SinglePassDualChannelGenerator",
+    "freeze_attack_public_summary",
     "parse_dual_channel_output",
     "scalable_aime_protocol",
     "scalable_gsm8k_protocol",

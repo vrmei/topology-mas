@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from topology_mas.models import (
     AnswerState,
+    AttackMode,
     MessageRecord,
     NodeTurnRecord,
     RunCondition,
@@ -105,6 +106,7 @@ class RunTrace(BaseModel):
     task_id: str = Field(min_length=1)
     graph_id: str = Field(min_length=1)
     condition: RunCondition
+    attack_mode: AttackMode | None = None
     attack_node: int | None = Field(default=None, ge=0)
     adversarial_answer_fingerprint: str | None = Field(
         default=None, min_length=64, max_length=64
@@ -132,6 +134,8 @@ class RunTrace(BaseModel):
     def validate_condition(self) -> RunTrace:
         if self.condition is RunCondition.CLEAN and self.attack_node is not None:
             raise ValueError("clean traces cannot specify attack_node")
+        if self.condition is RunCondition.CLEAN and self.attack_mode is not None:
+            raise ValueError("clean traces cannot specify attack_mode")
         if self.condition is RunCondition.CLEAN and (
             self.adversarial_answer_fingerprint is not None or self.target_answer is not None
         ):

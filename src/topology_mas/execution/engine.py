@@ -25,8 +25,11 @@ from topology_mas.execution.seeding import (
 )
 from topology_mas.models import (
     AdversarialAnswer,
+    AttackMode,
     GraphSpec,
     MessageRecord,
+    MessageType,
+    NodeSourceType,
     NodeTurnRecord,
     RunCondition,
     TaskInstance,
@@ -59,6 +62,7 @@ class SynchronousExecutionEngine:
         seed: int,
         attack_node: int | None = None,
         adversarial_answer: AdversarialAnswer | None = None,
+        attack_mode: AttackMode = AttackMode.FIXED,
         round_zero_records: tuple[RoundZeroRecord, ...] | None = None,
         initial_assignment: InitialStateAssignment | None = None,
     ) -> RunTrace:
@@ -68,6 +72,7 @@ class SynchronousExecutionEngine:
             condition=condition,
             attack_node=attack_node,
             adversarial_answer=adversarial_answer,
+            attack_mode=attack_mode,
             round_zero_records=round_zero_records,
             initial_assignment=initial_assignment,
         )
@@ -99,6 +104,7 @@ class SynchronousExecutionEngine:
             task.task_id,
             condition.value,
             attack_node,
+            attack_mode.value if attack_mode is AttackMode.ADAPTIVE else None,
             seed,
             self.prompt_version,
             self.settings.model_dump_json(),
@@ -138,11 +144,28 @@ class SynchronousExecutionEngine:
                 )
                 previous = previous_outputs.get(node_id)
                 previous_tokens = previous_output_tokens.get(node_id)
-                expected_prompt_messages = self.protocol.build_messages(
-                    task,
-                    previous_output=previous,
-                    incoming_messages=incoming,
-                )
+                is_attacker = condition is RunCondition.ATTACK and node_id == attack_node
+                if is_attacker and attack_mode is AttackMode.ADAPTIVE and round_index > 0:
+                    adaptive_builder = getattr(
+                        self.protocol, "build_adaptive_attack_messages", None
+                    )
+                    assert adversarial_answer is not None
+                    if not callable(adaptive_builder):
+                        raise ValueError(
+                            "adaptive attack requires protocol support for adaptive prompts"
+                        )
+                    expected_prompt_messages = adaptive_builder(
+                        task,
+                        previous_output=previous,
+                        incoming_messages=incoming,
+                        target_answer=adversarial_answer.target_answer,
+                    )
+                else:
+                    expected_prompt_messages = self.protocol.build_messages(
+                        task,
+                        previous_output=previous,
+                        incoming_messages=incoming,
+                    )
                 stochastic_stream_slot = (
                     initial_assignment.replica_for_node(node_id)
                     if initial_assignment is not None
@@ -162,8 +185,10 @@ class SynchronousExecutionEngine:
                         round_index=round_index,
                     )
                 )
-                is_attacker = condition is RunCondition.ATTACK and node_id == attack_node
-                if is_attacker:
+                fixed_attack_turn = is_attacker and (
+                    attack_mode is AttackMode.FIXED or round_index == 0
+                )
+                if fixed_attack_turn:
                     generator_called = False
                     assert adversarial_answer is not None
                     adversarial_formatter = getattr(
@@ -179,7 +204,36 @@ class SynchronousExecutionEngine:
                         input_tokens=0,
                         output_tokens=0,
                         latency_ms=0.0,
-                        metadata={"generator_called": False, "attack_replay": True},
+                        metadata={
+                            "generator_called": False,
+                            "attack_replay": True,
+                            "raw_solution_sha256": hashlib.sha256(
+                                adversarial_answer.rationale.strip().encode("utf-8")
+                            ).hexdigest(),
+                            "public_summary_sha256": (
+                                adversarial_answer.public_summary_hash
+                            ),
+                            "public_output_tokens": (
+                                adversarial_answer.public_summary_tokens
+                            ),
+                            "raw_parsed_answer": adversarial_answer.target_answer,
+                            "public_parsed_answer": (
+                                adversarial_answer.target_answer
+                                if adversarial_answer.public_summary is not None
+                                else None
+                            ),
+                            "summary_answer_matches_raw": (
+                                adversarial_answer.public_summary is not None
+                            ),
+                            "summary_validation_passed": (
+                                adversarial_answer.public_summary is not None
+                            ),
+                            "summary_mode": (
+                                "fixed_pre_frozen"
+                                if adversarial_answer.public_summary is not None
+                                else None
+                            ),
+                        },
                     )
                     prompt_messages = expected_prompt_messages
                 elif round_index == 0 and assigned_initial:
@@ -243,6 +297,21 @@ class SynchronousExecutionEngine:
                     reference_answer=task.reference_answer,
                     target_answer=target_answer,
                 )
+                if (
+                    is_attacker
+                    and attack_mode is AttackMode.ADAPTIVE
+                    and parsed != target_answer
+                ):
+                    raise ValueError(
+                        "adaptive attacker drifted away from the frozen target answer"
+                    )
+                response_id = stable_id(
+                    "node-response",
+                    run_id,
+                    round_index,
+                    node_id,
+                    hashlib.sha256(completion.raw_text.encode("utf-8")).hexdigest(),
+                )
                 turn = NodeTurnRecord(
                     run_id=run_id,
                     task_id=task.task_id,
@@ -252,6 +321,14 @@ class SynchronousExecutionEngine:
                     seed=seed,
                     round_index=round_index,
                     node_id=node_id,
+                    response_id=response_id,
+                    source_type=(
+                        NodeSourceType.ADAPTIVE_ATTACK
+                        if is_attacker and attack_mode is AttackMode.ADAPTIVE
+                        else NodeSourceType.FIXED_ATTACK
+                        if is_attacker
+                        else NodeSourceType.NATURAL
+                    ),
                     incoming_message_ids=tuple(message.message_id for message in incoming),
                     previous_raw_output=previous,
                     prompt_messages=tuple(message.model_dump() for message in prompt_messages),
@@ -356,6 +433,18 @@ class SynchronousExecutionEngine:
                     output_tokens=source_turn.metadata.get(
                         "public_output_tokens", source_turn.output_tokens
                     ),
+                    message_type=(
+                        MessageType.SUMMARY
+                        if getattr(self.protocol, "cross_node_message_type", None)
+                        == "summary"
+                        else MessageType.LEGACY_RAW
+                    ),
+                    summary_source_response_id=(
+                        source_turn.response_id
+                        if getattr(self.protocol, "cross_node_message_type", None)
+                        == "summary"
+                        else None
+                    ),
                     metadata={
                         "broadcast_copy": True,
                         "raw_output_sha256": hashlib.sha256(
@@ -406,6 +495,16 @@ class SynchronousExecutionEngine:
             task_id=task.task_id,
             graph_id=graph.graph_id,
             condition=condition,
+            attack_mode=(
+                attack_mode
+                if condition is RunCondition.ATTACK
+                and (
+                    attack_mode is AttackMode.ADAPTIVE
+                    or getattr(self.protocol, "cross_node_message_type", None)
+                    == "summary"
+                )
+                else None
+            ),
             attack_node=attack_node,
             adversarial_answer_fingerprint=adversarial_answer_fingerprint,
             target_answer=target_answer,
@@ -442,6 +541,7 @@ class SynchronousExecutionEngine:
         condition: RunCondition,
         attack_node: int | None,
         adversarial_answer: AdversarialAnswer | None,
+        attack_mode: AttackMode,
         round_zero_records: tuple[RoundZeroRecord, ...] | None,
         initial_assignment: InitialStateAssignment | None,
     ) -> None:
@@ -461,6 +561,10 @@ class SynchronousExecutionEngine:
                 raise ValueError("attack execution requires an oracle-accepted target error")
             if adversarial_answer.task_id != task.task_id:
                 raise ValueError("target error belongs to a different task")
+            if attack_mode is AttackMode.ADAPTIVE and not callable(
+                getattr(self.protocol, "build_adaptive_attack_messages", None)
+            ):
+                raise ValueError("selected protocol does not support adaptive attacks")
         if (round_zero_records is None) != (initial_assignment is None):
             raise ValueError("round_zero_records and initial_assignment must be provided together")
 

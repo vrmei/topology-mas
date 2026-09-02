@@ -26,6 +26,7 @@ from topology_mas.execution.seeding import stable_fingerprint, stable_id
 from topology_mas.models import (
     AdversarialAnswer,
     AnswerState,
+    AttackMode,
     GraphSpec,
     RunCondition,
     TaskInstance,
@@ -43,6 +44,7 @@ class BatchExecutionConfig(BaseModel):
     experiment_seeds: tuple[int, ...] = Field(min_length=1)
     assignment_seeds: tuple[int, ...] = Field(min_length=1)
     include_attacks: bool = True
+    attack_mode: AttackMode = AttackMode.FIXED
     initial_state_policy: Literal[
         "shared_round_zero_cache", "independent_per_run"
     ] = "shared_round_zero_cache"
@@ -550,6 +552,7 @@ class BatchExecutionRunner:
                         if spec.condition is RunCondition.ATTACK
                         else None
                     ),
+                    attack_mode=self.config.attack_mode,
                     round_zero_records=(selected_records if assignment is not None else None),
                     initial_assignment=assignment,
                 )

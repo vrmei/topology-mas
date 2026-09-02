@@ -6,6 +6,7 @@ the stable records written to disk and exchanged between later modules.
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -33,6 +34,22 @@ class OracleStatus(StrEnum):
 class RunCondition(StrEnum):
     CLEAN = "clean"
     ATTACK = "attack"
+
+
+class AttackMode(StrEnum):
+    FIXED = "fixed"
+    ADAPTIVE = "adaptive"
+
+
+class NodeSourceType(StrEnum):
+    NATURAL = "natural"
+    FIXED_ATTACK = "fixed_attack"
+    ADAPTIVE_ATTACK = "adaptive_attack"
+
+
+class MessageType(StrEnum):
+    LEGACY_RAW = "legacy_raw"
+    SUMMARY = "summary"
 
 
 class DirectedEdge(BaseModel):
@@ -106,7 +123,31 @@ class AdversarialAnswer(BaseModel):
     oracle_status: OracleStatus = OracleStatus.UNVERIFIED
     plausibility_score: float | None = Field(default=None, ge=0.0, le=1.0)
     generator_model: str | None = None
+    public_summary: str | None = None
+    public_summary_tokens: int | None = Field(default=None, ge=0)
+    public_summary_hash: str | None = Field(
+        default=None, pattern=r"^[0-9a-f]{64}$"
+    )
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_optional_summary(self) -> AdversarialAnswer:
+        summary_fields = (
+            self.public_summary,
+            self.public_summary_tokens,
+            self.public_summary_hash,
+        )
+        if any(value is not None for value in summary_fields) and any(
+            value is None for value in summary_fields
+        ):
+            raise ValueError("fixed attack summary fields must be provided together")
+        if self.public_summary is not None:
+            expected_hash = hashlib.sha256(
+                self.public_summary.strip().encode("utf-8")
+            ).hexdigest()
+            if self.public_summary_hash != expected_hash:
+                raise ValueError("public_summary_hash does not match public_summary")
+        return self
 
     @property
     def accepted(self) -> bool:
@@ -131,6 +172,8 @@ class MessageRecord(BaseModel):
     parsed_answer: str | None = None
     answer_state: AnswerState = AnswerState.UNPARSED
     output_tokens: int | None = Field(default=None, ge=0)
+    message_type: MessageType = MessageType.LEGACY_RAW
+    summary_source_response_id: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
@@ -139,6 +182,16 @@ class MessageRecord(BaseModel):
             raise ValueError("message recipients must be unique")
         if self.sender in self.recipients:
             raise ValueError("a sender cannot broadcast to itself")
+        if (
+            self.message_type is MessageType.SUMMARY
+            and self.summary_source_response_id is None
+        ):
+            raise ValueError("summary messages require summary_source_response_id")
+        if (
+            self.message_type is not MessageType.SUMMARY
+            and self.summary_source_response_id is not None
+        ):
+            raise ValueError("legacy raw messages cannot reference a summary source")
         return self
 
 
@@ -155,6 +208,8 @@ class NodeTurnRecord(BaseModel):
     seed: int
     round_index: int = Field(ge=0)
     node_id: int = Field(ge=0)
+    response_id: str | None = None
+    source_type: NodeSourceType = NodeSourceType.NATURAL
     incoming_message_ids: tuple[str, ...] = ()
     previous_raw_output: str | None = None
     prompt_messages: tuple[dict[str, str], ...] = ()
