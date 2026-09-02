@@ -1,0 +1,18 @@
+{
+  "audit_version": "aime-full-rationale-audit-v1",
+  "batch_dir": "/root/autodl-tmp/aime_original_2026_qwen3_4b_clean_mas_full_rationale_n5_h3_v1",
+  "example_file": "prompt_audit_examples.json",
+  "failure_count": 0,
+  "failures": [],
+  "full_raw_peer_responses": true,
+  "generation_pipeline": "single-pass",
+  "messages": 4890,
+  "no_message_compression": true,
+  "no_summarization": true,
+  "one_physical_call_per_node_update": true,
+  "prompt_version": "homogeneous-aime-full-rationale-v1",
+  "runs": 480,
+  "trace_backend_calls": 6810,
+  "trace_model_calls": 6810,
+  "turns": 6810
+}

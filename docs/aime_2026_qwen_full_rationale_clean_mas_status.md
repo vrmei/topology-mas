@@ -76,9 +76,8 @@ response equals the corresponding source output.
 
 ## Execution and post-processing
 
-The 480-run main batch is running on the A800 80 GB server with 12 concurrent
-task-graph workers. After completion, a watcher first runs the same protocol
-audit over all turns and messages, then computes paired Round-0 and Round-3
-utility, task-bootstrap confidence intervals, `C0->C3`, `O0->C3`, `U0->C3`,
-`C0->not-C3`, difficulty-band results, density results, and graph-level outcomes.
-No result claim is made before this batch and its audit complete.
+The 480-run main batch and its protocol audit are complete. All 480 runs
+succeeded. The audit covered 6,810 turns and 4,890 broadcast messages and found
+zero summarization, compression, context-overflow, context-truncation, or raw
+broadcast mismatch events. Primary results are reported in
+[`aime_2026_qwen_full_rationale_clean_mas_results.md`](aime_2026_qwen_full_rationale_clean_mas_results.md).

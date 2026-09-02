@@ -1,0 +1,638 @@
+{
+  "analysis_version": "aime-clean-mas-paired-v3",
+  "batch_dirs": [
+    "/root/autodl-tmp/aime_original_2026_qwen3_4b_clean_mas_full_rationale_n5_h3_v1"
+  ],
+  "batch_labels": [
+    "full_rationale"
+  ],
+  "bootstrap_samples": 10000,
+  "bootstrap_seed": 20260901,
+  "cohort_comparisons": [],
+  "communication_protocol": "full-rationale",
+  "conditional_edge_level_adjacent_differences": [
+    {
+      "first_edge_count": 8,
+      "hierarchical_bootstrap_95_high": 0.06060606060606055,
+      "hierarchical_bootstrap_95_low": -0.16000000000000003,
+      "metric": "correct_preservation_C_to_C",
+      "observed_first_minus_second": -0.03941120607787274,
+      "second_edge_count": 4
+    },
+    {
+      "first_edge_count": 8,
+      "hierarchical_bootstrap_95_high": 0.10739143965327451,
+      "hierarchical_bootstrap_95_low": -0.3606923142906159,
+      "metric": "other_error_correction_O_to_C",
+      "observed_first_minus_second": -0.12015086206896552,
+      "second_edge_count": 4
+    },
+    {
+      "first_edge_count": 8,
+      "hierarchical_bootstrap_95_high": 0.6666666666666667,
+      "hierarchical_bootstrap_95_low": -0.7,
+      "metric": "unparsed_correction_U_to_C",
+      "observed_first_minus_second": -0.022727272727272707,
+      "second_edge_count": 4
+    },
+    {
+      "first_edge_count": 12,
+      "hierarchical_bootstrap_95_high": 0.13077832461956362,
+      "hierarchical_bootstrap_95_low": -0.11111111111111116,
+      "metric": "correct_preservation_C_to_C",
+      "observed_first_minus_second": 0.0031269543464664817,
+      "second_edge_count": 8
+    },
+    {
+      "first_edge_count": 12,
+      "hierarchical_bootstrap_95_high": 0.20094867734724287,
+      "hierarchical_bootstrap_95_low": -0.21804853041695146,
+      "metric": "other_error_correction_O_to_C",
+      "observed_first_minus_second": -0.011458333333333348,
+      "second_edge_count": 8
+    },
+    {
+      "first_edge_count": 12,
+      "hierarchical_bootstrap_95_high": 0.9230769230769231,
+      "hierarchical_bootstrap_95_low": -0.6,
+      "metric": "unparsed_correction_U_to_C",
+      "observed_first_minus_second": 0.25,
+      "second_edge_count": 8
+    },
+    {
+      "first_edge_count": 16,
+      "hierarchical_bootstrap_95_high": 0.16129032258064513,
+      "hierarchical_bootstrap_95_low": 0.0,
+      "metric": "correct_preservation_C_to_C",
+      "observed_first_minus_second": 0.060975609756097615,
+      "second_edge_count": 12
+    },
+    {
+      "first_edge_count": 16,
+      "hierarchical_bootstrap_95_high": 0.4189907319746873,
+      "hierarchical_bootstrap_95_low": -0.012145748987854199,
+      "metric": "other_error_correction_O_to_C",
+      "observed_first_minus_second": 0.21666666666666667,
+      "second_edge_count": 12
+    },
+    {
+      "first_edge_count": 16,
+      "hierarchical_bootstrap_95_high": 0.5,
+      "hierarchical_bootstrap_95_low": -1.0,
+      "metric": "unparsed_correction_U_to_C",
+      "observed_first_minus_second": -0.25,
+      "second_edge_count": 12
+    }
+  ],
+  "density_slopes_excluding_single_complete_graph": [
+    {
+      "bootstrap_95_high": 0.014166666666666638,
+      "bootstrap_95_low": -0.010833333333333375,
+      "bootstrap_probability_positive": 0.5221,
+      "edge_counts": [
+        4,
+        8,
+        12
+      ],
+      "metric": "initial_correct",
+      "observed_slope_per_edge": 0.0008333333333332919
+    },
+    {
+      "bootstrap_95_high": 0.0049999999999999776,
+      "bootstrap_95_low": -0.017500000000000054,
+      "bootstrap_probability_positive": 0.1081,
+      "edge_counts": [
+        4,
+        8,
+        12
+      ],
+      "metric": "final_correct",
+      "observed_slope_per_edge": -0.006666666666666711
+    },
+    {
+      "bootstrap_95_high": 0.009999999999999993,
+      "bootstrap_95_low": -0.026666666666666665,
+      "bootstrap_probability_positive": 0.186,
+      "edge_counts": [
+        4,
+        8,
+        12
+      ],
+      "metric": "paired_delta",
+      "observed_slope_per_edge": -0.007500000000000002
+    }
+  ],
+  "difficulty_band_pairwise_differences": [
+    {
+      "bootstrap_95_high": 0.2881944444444444,
+      "bootstrap_95_low": 0.06597222222222224,
+      "first_band": "informative",
+      "observed_difference": 0.18055555555555555,
+      "second_band": "floor"
+    },
+    {
+      "bootstrap_95_high": 0.2569444444444444,
+      "bootstrap_95_low": 0.046875,
+      "first_band": "informative",
+      "observed_difference": 0.1527777777777778,
+      "second_band": "ceiling"
+    }
+  ],
+  "difficulty_bands": [
+    {
+      "correct_corruption_C_to_not_C": 0.0,
+      "correct_preservation_C_to_C": 1.0,
+      "count_C_to_C": 130,
+      "count_C_to_O": 0,
+      "count_C_to_U": 0,
+      "count_O_to_C": 13,
+      "count_O_to_O": 0,
+      "count_O_to_U": 0,
+      "count_U_to_C": 1,
+      "count_U_to_O": 0,
+      "count_U_to_U": 0,
+      "difficulty_band": "ceiling",
+      "final_utility": 1.0,
+      "initial_utility": 0.9027777777777778,
+      "other_error_correction_O_to_C": 1.0,
+      "paired_delta": 0.09722222222222222,
+      "paired_delta_task_bootstrap_95_high": 0.16666666666666666,
+      "paired_delta_task_bootstrap_95_low": 0.041666666666666664,
+      "runs": 144,
+      "tasks": 9,
+      "unparsed_correction_U_to_C": 1.0
+    },
+    {
+      "correct_corruption_C_to_not_C": 0.07627118644067798,
+      "correct_preservation_C_to_C": 0.923728813559322,
+      "count_C_to_C": 109,
+      "count_C_to_O": 8,
+      "count_C_to_U": 1,
+      "count_O_to_C": 49,
+      "count_O_to_O": 11,
+      "count_O_to_U": 2,
+      "count_U_to_C": 8,
+      "count_U_to_O": 4,
+      "count_U_to_U": 0,
+      "difficulty_band": "informative",
+      "final_utility": 0.8645833333333334,
+      "initial_utility": 0.6145833333333334,
+      "other_error_correction_O_to_C": 0.7903225806451613,
+      "paired_delta": 0.25,
+      "paired_delta_task_bootstrap_95_high": 0.3385416666666667,
+      "paired_delta_task_bootstrap_95_low": 0.16666666666666666,
+      "runs": 192,
+      "tasks": 12,
+      "unparsed_correction_U_to_C": 0.6666666666666666
+    },
+    {
+      "correct_corruption_C_to_not_C": 0.75,
+      "correct_preservation_C_to_C": 0.25,
+      "count_C_to_C": 1,
+      "count_C_to_O": 3,
+      "count_C_to_U": 0,
+      "count_O_to_C": 12,
+      "count_O_to_O": 102,
+      "count_O_to_U": 8,
+      "count_U_to_C": 1,
+      "count_U_to_O": 15,
+      "count_U_to_U": 2,
+      "difficulty_band": "floor",
+      "final_utility": 0.09722222222222222,
+      "initial_utility": 0.027777777777777776,
+      "other_error_correction_O_to_C": 0.09836065573770492,
+      "paired_delta": 0.06944444444444445,
+      "paired_delta_task_bootstrap_95_high": 0.14583333333333334,
+      "paired_delta_task_bootstrap_95_low": 0.013888888888888888,
+      "runs": 144,
+      "tasks": 9,
+      "unparsed_correction_U_to_C": 0.05555555555555555
+    }
+  ],
+  "edge_level_adjacent_differences": [
+    {
+      "first_edge_count": 8,
+      "hierarchical_bootstrap_95_high": 0.08666666666666667,
+      "hierarchical_bootstrap_95_low": -0.12,
+      "metric": "initial_correct",
+      "observed_first_minus_second": -0.020000000000000018,
+      "second_edge_count": 4
+    },
+    {
+      "first_edge_count": 8,
+      "hierarchical_bootstrap_95_high": 0.006666666666666656,
+      "hierarchical_bootstrap_95_low": -0.18666666666666665,
+      "metric": "final_correct",
+      "observed_first_minus_second": -0.07999999999999996,
+      "second_edge_count": 4
+    },
+    {
+      "first_edge_count": 8,
+      "hierarchical_bootstrap_95_high": 0.08,
+      "hierarchical_bootstrap_95_low": -0.22,
+      "metric": "paired_delta",
+      "observed_first_minus_second": -0.06,
+      "second_edge_count": 4
+    },
+    {
+      "first_edge_count": 12,
+      "hierarchical_bootstrap_95_high": 0.14,
+      "hierarchical_bootstrap_95_low": -0.08666666666666667,
+      "metric": "initial_correct",
+      "observed_first_minus_second": 0.026666666666666616,
+      "second_edge_count": 8
+    },
+    {
+      "first_edge_count": 12,
+      "hierarchical_bootstrap_95_high": 0.1266666666666666,
+      "hierarchical_bootstrap_95_low": -0.06666666666666665,
+      "metric": "final_correct",
+      "observed_first_minus_second": 0.026666666666666616,
+      "second_edge_count": 8
+    },
+    {
+      "first_edge_count": 12,
+      "hierarchical_bootstrap_95_high": 0.12666666666666668,
+      "hierarchical_bootstrap_95_low": -0.13333333333333333,
+      "metric": "paired_delta",
+      "observed_first_minus_second": 0.0,
+      "second_edge_count": 8
+    },
+    {
+      "first_edge_count": 16,
+      "hierarchical_bootstrap_95_high": -0.05316666666666905,
+      "hierarchical_bootstrap_95_low": -0.3266666666666667,
+      "metric": "initial_correct",
+      "observed_first_minus_second": -0.18,
+      "second_edge_count": 12
+    },
+    {
+      "first_edge_count": 16,
+      "hierarchical_bootstrap_95_high": 0.09333333333333327,
+      "hierarchical_bootstrap_95_low": -0.10666666666666669,
+      "metric": "final_correct",
+      "observed_first_minus_second": 0.0,
+      "second_edge_count": 12
+    },
+    {
+      "first_edge_count": 16,
+      "hierarchical_bootstrap_95_high": 0.35333333333333333,
+      "hierarchical_bootstrap_95_low": 0.01999999999999999,
+      "metric": "paired_delta",
+      "observed_first_minus_second": 0.18,
+      "second_edge_count": 12
+    }
+  ],
+  "edge_levels": [
+    {
+      "correct_corruption_C_to_not_C": 0.024691358024691357,
+      "correct_preservation_C_to_C": 0.9753086419753086,
+      "correct_preservation_C_to_C_hierarchical_bootstrap_95_high": 1.0,
+      "correct_preservation_C_to_C_hierarchical_bootstrap_95_low": 0.8928571428571429,
+      "count_C_to_C": 79,
+      "count_C_to_O": 2,
+      "count_C_to_U": 0,
+      "count_O_to_C": 26,
+      "count_O_to_O": 31,
+      "count_O_to_U": 1,
+      "count_U_to_C": 3,
+      "count_U_to_O": 6,
+      "count_U_to_U": 2,
+      "edge_count": 4,
+      "final_utility": 0.72,
+      "final_utility_hierarchical_bootstrap_95_high": 0.8666666666666667,
+      "final_utility_hierarchical_bootstrap_95_low": 0.56,
+      "graph_final_utility_sd": 0.033993463423951924,
+      "graphs": 5,
+      "initial_utility": 0.54,
+      "initial_utility_hierarchical_bootstrap_95_high": 0.6933333333333334,
+      "initial_utility_hierarchical_bootstrap_95_low": 0.38,
+      "other_error_correction_O_to_C": 0.4482758620689655,
+      "other_error_correction_O_to_C_hierarchical_bootstrap_95_high": 0.7436046511627905,
+      "other_error_correction_O_to_C_hierarchical_bootstrap_95_low": 0.20338320974576274,
+      "paired_delta": 0.18,
+      "paired_delta_hierarchical_bootstrap_95_high": 0.31333333333333335,
+      "paired_delta_hierarchical_bootstrap_95_low": 0.06666666666666667,
+      "runs": 150,
+      "unparsed_correction_U_to_C": 0.2727272727272727,
+      "unparsed_correction_U_to_C_hierarchical_bootstrap_95_high": 1.0,
+      "unparsed_correction_U_to_C_hierarchical_bootstrap_95_low": 0.0
+    },
+    {
+      "correct_corruption_C_to_not_C": 0.0641025641025641,
+      "correct_preservation_C_to_C": 0.9358974358974359,
+      "correct_preservation_C_to_C_hierarchical_bootstrap_95_high": 1.0,
+      "correct_preservation_C_to_C_hierarchical_bootstrap_95_low": 0.8208955223880597,
+      "count_C_to_C": 73,
+      "count_C_to_O": 4,
+      "count_C_to_U": 1,
+      "count_O_to_C": 21,
+      "count_O_to_O": 39,
+      "count_O_to_U": 4,
+      "count_U_to_C": 2,
+      "count_U_to_O": 6,
+      "count_U_to_U": 0,
+      "edge_count": 8,
+      "final_utility": 0.64,
+      "final_utility_hierarchical_bootstrap_95_high": 0.7866666666666666,
+      "final_utility_hierarchical_bootstrap_95_low": 0.48,
+      "graph_final_utility_sd": 0.03265986323710904,
+      "graphs": 5,
+      "initial_utility": 0.52,
+      "initial_utility_hierarchical_bootstrap_95_high": 0.6733333333333333,
+      "initial_utility_hierarchical_bootstrap_95_low": 0.36,
+      "other_error_correction_O_to_C": 0.328125,
+      "other_error_correction_O_to_C_hierarchical_bootstrap_95_high": 0.5535782967032966,
+      "other_error_correction_O_to_C_hierarchical_bootstrap_95_low": 0.1518987341772152,
+      "paired_delta": 0.12,
+      "paired_delta_hierarchical_bootstrap_95_high": 0.22,
+      "paired_delta_hierarchical_bootstrap_95_low": 0.02666666666666667,
+      "runs": 150,
+      "unparsed_correction_U_to_C": 0.25,
+      "unparsed_correction_U_to_C_hierarchical_bootstrap_95_high": 1.0,
+      "unparsed_correction_U_to_C_hierarchical_bootstrap_95_low": 0.0
+    },
+    {
+      "correct_corruption_C_to_not_C": 0.060975609756097615,
+      "correct_preservation_C_to_C": 0.9390243902439024,
+      "correct_preservation_C_to_C_hierarchical_bootstrap_95_high": 1.0,
+      "correct_preservation_C_to_C_hierarchical_bootstrap_95_low": 0.8387096774193549,
+      "count_C_to_C": 77,
+      "count_C_to_O": 5,
+      "count_C_to_U": 0,
+      "count_O_to_C": 19,
+      "count_O_to_O": 36,
+      "count_O_to_U": 5,
+      "count_U_to_C": 4,
+      "count_U_to_O": 4,
+      "count_U_to_U": 0,
+      "edge_count": 12,
+      "final_utility": 0.6666666666666666,
+      "final_utility_hierarchical_bootstrap_95_high": 0.8133333333333334,
+      "final_utility_hierarchical_bootstrap_95_low": 0.5066666666666667,
+      "graph_final_utility_sd": 0.036514837167011066,
+      "graphs": 5,
+      "initial_utility": 0.5466666666666666,
+      "initial_utility_hierarchical_bootstrap_95_high": 0.6933333333333334,
+      "initial_utility_hierarchical_bootstrap_95_low": 0.4,
+      "other_error_correction_O_to_C": 0.31666666666666665,
+      "other_error_correction_O_to_C_hierarchical_bootstrap_95_high": 0.5384999999999994,
+      "other_error_correction_O_to_C_hierarchical_bootstrap_95_low": 0.14545454545454545,
+      "paired_delta": 0.12,
+      "paired_delta_hierarchical_bootstrap_95_high": 0.22,
+      "paired_delta_hierarchical_bootstrap_95_low": 0.03333333333333333,
+      "runs": 150,
+      "unparsed_correction_U_to_C": 0.5,
+      "unparsed_correction_U_to_C_hierarchical_bootstrap_95_high": 1.0,
+      "unparsed_correction_U_to_C_hierarchical_bootstrap_95_low": 0.0
+    },
+    {
+      "correct_corruption_C_to_not_C": 0.0,
+      "correct_preservation_C_to_C": 1.0,
+      "correct_preservation_C_to_C_hierarchical_bootstrap_95_high": 1.0,
+      "correct_preservation_C_to_C_hierarchical_bootstrap_95_low": 1.0,
+      "count_C_to_C": 11,
+      "count_C_to_O": 0,
+      "count_C_to_U": 0,
+      "count_O_to_C": 8,
+      "count_O_to_O": 7,
+      "count_O_to_U": 0,
+      "count_U_to_C": 1,
+      "count_U_to_O": 3,
+      "count_U_to_U": 0,
+      "edge_count": 16,
+      "final_utility": 0.6666666666666666,
+      "final_utility_hierarchical_bootstrap_95_high": 0.8333333333333334,
+      "final_utility_hierarchical_bootstrap_95_low": 0.5,
+      "graph_final_utility_sd": null,
+      "graphs": 1,
+      "initial_utility": 0.36666666666666664,
+      "initial_utility_hierarchical_bootstrap_95_high": 0.5333333333333333,
+      "initial_utility_hierarchical_bootstrap_95_low": 0.2,
+      "other_error_correction_O_to_C": 0.5333333333333333,
+      "other_error_correction_O_to_C_hierarchical_bootstrap_95_high": 0.7857142857142857,
+      "other_error_correction_O_to_C_hierarchical_bootstrap_95_low": 0.2727272727272727,
+      "paired_delta": 0.3,
+      "paired_delta_hierarchical_bootstrap_95_high": 0.4666666666666667,
+      "paired_delta_hierarchical_bootstrap_95_low": 0.13333333333333333,
+      "runs": 30,
+      "unparsed_correction_U_to_C": 0.25,
+      "unparsed_correction_U_to_C_hierarchical_bootstrap_95_high": 1.0,
+      "unparsed_correction_U_to_C_hierarchical_bootstrap_95_low": 0.0
+    }
+  ],
+  "expected_prompt_version": "homogeneous-aime-full-rationale-v1",
+  "overall": {
+    "audited_turns": 6810,
+    "communication_protocol": "full-rationale",
+    "context_overflow_turns": 0,
+    "context_truncation_turns": 0,
+    "correct_corruption_C_to_not_C": 0.04761904761904767,
+    "correct_preservation_C_to_C": 0.9523809523809523,
+    "count_C_to_C": 240,
+    "count_C_to_O": 11,
+    "count_C_to_U": 1,
+    "count_O_to_C": 74,
+    "count_O_to_O": 113,
+    "count_O_to_U": 10,
+    "count_U_to_C": 10,
+    "count_U_to_O": 19,
+    "count_U_to_U": 2,
+    "external_full_rationale_round_zero_utility": 0.5133333333333333,
+    "external_reference_is_paired": false,
+    "final_utility": 0.675,
+    "graph_final_utility_mean": 0.6749999999999999,
+    "graph_final_utility_sd": 0.046398036356916854,
+    "initial_utility": 0.525,
+    "message_compression_turns": 0,
+    "one_physical_call_per_node_update": true,
+    "other_error_correction_O_to_C": 0.3756345177664975,
+    "paired_delta": 0.15,
+    "paired_delta_task_bootstrap_95_high": 0.20416666666666666,
+    "paired_delta_task_bootstrap_95_low": 0.1,
+    "prompt_version": "homogeneous-aime-full-rationale-v1",
+    "raw_broadcast_mismatch_messages": 0,
+    "runs": 480,
+    "scope": "all_tasks_all_graphs",
+    "summarization_turns": 0,
+    "trace_backend_calls": 6810,
+    "trace_model_calls": 6810,
+    "unparsed_correction_U_to_C": 0.3225806451612903
+  },
+  "structure_permutation_tests_excluding_single_complete_graph": [
+    {
+      "edge_counts": [
+        4,
+        8,
+        12
+      ],
+      "full_terms": [
+        "task_id",
+        "edge_count"
+      ],
+      "metric": "initial_correct",
+      "partial_r_squared": 0.0012596899224808172,
+      "permutation_p_value": 0.7574485102979404,
+      "permutations": 5000,
+      "reduced_terms": [
+        "task_id"
+      ],
+      "test": "density_beyond_task"
+    },
+    {
+      "edge_counts": [
+        4,
+        8,
+        12
+      ],
+      "full_terms": [
+        "task_id",
+        "graph_id"
+      ],
+      "metric": "initial_correct",
+      "partial_r_squared": 0.0152131782945737,
+      "permutation_p_value": 0.9556088782243551,
+      "permutations": 5000,
+      "reduced_terms": [
+        "task_id"
+      ],
+      "test": "graph_beyond_task"
+    },
+    {
+      "edge_counts": [
+        4,
+        8,
+        12
+      ],
+      "full_terms": [
+        "task_id",
+        "graph_id"
+      ],
+      "metric": "initial_correct",
+      "partial_r_squared": 0.013971087610361753,
+      "permutation_p_value": 0.9250149970005999,
+      "permutations": 5000,
+      "reduced_terms": [
+        "task_id",
+        "edge_count"
+      ],
+      "test": "graph_arrangement_beyond_task_and_density"
+    },
+    {
+      "edge_counts": [
+        4,
+        8,
+        12
+      ],
+      "full_terms": [
+        "task_id",
+        "edge_count"
+      ],
+      "metric": "final_correct",
+      "partial_r_squared": 0.018300653594771232,
+      "permutation_p_value": 0.01839632073585283,
+      "permutations": 5000,
+      "reduced_terms": [
+        "task_id"
+      ],
+      "test": "density_beyond_task"
+    },
+    {
+      "edge_counts": [
+        4,
+        8,
+        12
+      ],
+      "full_terms": [
+        "task_id",
+        "graph_id"
+      ],
+      "metric": "final_correct",
+      "partial_r_squared": 0.037908496732026065,
+      "permutation_p_value": 0.3375324935012997,
+      "permutations": 5000,
+      "reduced_terms": [
+        "task_id"
+      ],
+      "test": "graph_beyond_task"
+    },
+    {
+      "edge_counts": [
+        4,
+        8,
+        12
+      ],
+      "full_terms": [
+        "task_id",
+        "graph_id"
+      ],
+      "metric": "final_correct",
+      "partial_r_squared": 0.01997336884154454,
+      "permutation_p_value": 0.7776444711057788,
+      "permutations": 5000,
+      "reduced_terms": [
+        "task_id",
+        "edge_count"
+      ],
+      "test": "graph_arrangement_beyond_task_and_density"
+    },
+    {
+      "edge_counts": [
+        4,
+        8,
+        12
+      ],
+      "full_terms": [
+        "task_id",
+        "edge_count"
+      ],
+      "metric": "paired_delta",
+      "partial_r_squared": 0.005172413793103645,
+      "permutation_p_value": 0.34753049390121976,
+      "permutations": 5000,
+      "reduced_terms": [
+        "task_id"
+      ],
+      "test": "density_beyond_task"
+    },
+    {
+      "edge_counts": [
+        4,
+        8,
+        12
+      ],
+      "full_terms": [
+        "task_id",
+        "graph_id"
+      ],
+      "metric": "paired_delta",
+      "partial_r_squared": 0.02796934865900392,
+      "permutation_p_value": 0.6270745850829834,
+      "permutations": 5000,
+      "reduced_terms": [
+        "task_id"
+      ],
+      "test": "graph_beyond_task"
+    },
+    {
+      "edge_counts": [
+        4,
+        8,
+        12
+      ],
+      "full_terms": [
+        "task_id",
+        "graph_id"
+      ],
+      "metric": "paired_delta",
+      "partial_r_squared": 0.022915463123435287,
+      "permutation_p_value": 0.6530693861227754,
+      "permutations": 5000,
+      "reduced_terms": [
+        "task_id",
+        "edge_count"
+      ],
+      "test": "graph_arrangement_beyond_task_and_density"
+    }
+  ]
+}
