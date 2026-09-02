@@ -74,7 +74,9 @@ class ExecutionSettings(BaseModel):
         "independent-resampling", "state-consistent-replay-v1"
     ] = "independent-resampling"
     generation_pipeline: Literal[
-        "single-pass", "aime-private-solve-public-summary-v1"
+        "single-pass",
+        "aime-private-solve-public-summary-v1",
+        "single-pass-dual-channel-v1",
     ] = "single-pass"
     private_max_output_tokens: int | None = Field(default=None, ge=1)
     public_summary_temperature: float | None = Field(default=None, ge=0.0, le=2.0)

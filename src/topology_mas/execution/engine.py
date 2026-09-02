@@ -166,8 +166,16 @@ class SynchronousExecutionEngine:
                 if is_attacker:
                     generator_called = False
                     assert adversarial_answer is not None
+                    adversarial_formatter = getattr(
+                        self.protocol, "adversarial_output", None
+                    )
+                    adversarial_raw = (
+                        adversarial_formatter(adversarial_answer)
+                        if callable(adversarial_formatter)
+                        else adversarial_answer.rationale
+                    )
                     completion = TextGenerationResult(
-                        raw_text=adversarial_answer.rationale,
+                        raw_text=adversarial_raw,
                         input_tokens=0,
                         output_tokens=0,
                         latency_ms=0.0,
@@ -191,6 +199,7 @@ class SynchronousExecutionEngine:
                         output_tokens=cached.output_tokens,
                         latency_ms=cached.latency_ms,
                         metadata={
+                            **cached.provider_metadata,
                             "generator_called": False,
                             "round_zero_cache_replay": True,
                             "round_zero_record_id": cached.record_id,
@@ -298,9 +307,15 @@ class SynchronousExecutionEngine:
                             )
                             is not None,
                             "summarization": self.settings.generation_pipeline
-                            == "aime-private-solve-public-summary-v1",
+                            in {
+                                "aime-private-solve-public-summary-v1",
+                                "single-pass-dual-channel-v1",
+                            },
                             "message_compression": self.settings.generation_pipeline
-                            == "aime-private-solve-public-summary-v1",
+                            in {
+                                "aime-private-solve-public-summary-v1",
+                                "single-pass-dual-channel-v1",
+                            },
                         },
                     },
                 )
@@ -326,6 +341,7 @@ class SynchronousExecutionEngine:
                 recipients_by_sender.setdefault(edge.source, []).append(edge.target)
             for sender, recipients in sorted(recipients_by_sender.items()):
                 source_turn = round_outputs[sender]
+                public_text = self.protocol.public_message(source_turn.raw_output)
                 message = MessageRecord(
                     message_id=f"{run_id}-m{round_index}-n{sender}",
                     run_id=run_id,
@@ -334,7 +350,7 @@ class SynchronousExecutionEngine:
                     round_index=round_index,
                     sender=sender,
                     recipients=tuple(sorted(recipients)),
-                    raw_text=self.protocol.public_message(source_turn.raw_output),
+                    raw_text=public_text,
                     parsed_answer=source_turn.parsed_answer,
                     answer_state=source_turn.answer_state,
                     output_tokens=source_turn.metadata.get(
@@ -346,9 +362,33 @@ class SynchronousExecutionEngine:
                             source_turn.raw_output.encode("utf-8")
                         ).hexdigest(),
                         "public_message_equals_raw_output": (
-                            self.protocol.public_message(source_turn.raw_output)
-                            == source_turn.raw_output
+                            public_text == source_turn.raw_output
                         ),
+                        "raw_solution_sha256": source_turn.metadata.get(
+                            "raw_solution_sha256"
+                        ),
+                        "public_summary_sha256": source_turn.metadata.get(
+                            "public_summary_sha256"
+                        ),
+                        "raw_solution_tokens": source_turn.metadata.get(
+                            "raw_solution_tokens"
+                        ),
+                        "public_summary_tokens": source_turn.metadata.get(
+                            "public_output_tokens"
+                        ),
+                        "raw_parsed_answer": source_turn.metadata.get(
+                            "raw_parsed_answer"
+                        ),
+                        "public_parsed_answer": source_turn.metadata.get(
+                            "public_parsed_answer"
+                        ),
+                        "summary_answer_matches_raw": source_turn.metadata.get(
+                            "summary_answer_matches_raw"
+                        ),
+                        "summary_validation_passed": source_turn.metadata.get(
+                            "summary_validation_passed"
+                        ),
+                        "summary_mode": source_turn.metadata.get("summary_mode"),
                     },
                 )
                 messages.append(message)
