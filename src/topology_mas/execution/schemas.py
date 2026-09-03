@@ -78,6 +78,7 @@ class ExecutionSettings(BaseModel):
         "single-pass",
         "aime-private-solve-public-summary-v1",
         "single-pass-dual-channel-v1",
+        "summary-protocol-v2",
     ] = "single-pass"
     private_max_output_tokens: int | None = Field(default=None, ge=1)
     public_summary_temperature: float | None = Field(default=None, ge=0.0, le=2.0)

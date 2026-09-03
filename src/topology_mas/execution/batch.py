@@ -363,6 +363,11 @@ class BatchExecutionStore:
             )
             if hasattr(exc, name)
         }
+        failure_payload = (
+            exc.to_failure_payload()
+            if callable(getattr(exc, "to_failure_payload", None))
+            else None
+        )
         _atomic_write_json(
             path,
             {
@@ -370,6 +375,7 @@ class BatchExecutionStore:
                 "exception_type": type(exc).__name__,
                 "message": str(exc),
                 "details": details,
+                "failure_payload": failure_payload,
             },
         )
         return path

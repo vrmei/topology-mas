@@ -37,6 +37,55 @@ from topology_mas.models import (
 from topology_mas.topology.graph_ops import build_causal_schedule, graph_depth_to_readout
 
 
+class ExecutionInterruptedError(RuntimeError):
+    """A node update failed after earlier turns had already completed."""
+
+    def __init__(
+        self,
+        *,
+        cause: Exception,
+        run_id: str,
+        task_id: str,
+        graph_id: str,
+        round_index: int,
+        node_id: int,
+        prompt_messages: tuple[ChatMessage, ...],
+        incoming: tuple[MessageRecord, ...],
+        previous_output: str | None,
+        partial_turns: list[NodeTurnRecord],
+        partial_messages: list[MessageRecord],
+    ) -> None:
+        super().__init__(
+            f"execution interrupted at round={round_index}, node={node_id}: {cause}"
+        )
+        self.cause = cause
+        self.request_id = getattr(cause, "request_id", None)
+        self.run_id = run_id
+        self.round_index = round_index
+        self.node_id = node_id
+        self._failure_payload = {
+            "run_id": run_id,
+            "task_id": task_id,
+            "graph_id": graph_id,
+            "round_index": round_index,
+            "node_id": node_id,
+            "previous_output": previous_output,
+            "incoming_messages": [item.model_dump(mode="json") for item in incoming],
+            "prompt_messages": [item.model_dump(mode="json") for item in prompt_messages],
+            "partial_turns": [item.model_dump(mode="json") for item in partial_turns],
+            "partial_messages": [item.model_dump(mode="json") for item in partial_messages],
+            "cause_type": type(cause).__name__,
+            "cause": (
+                cause.to_failure_payload()
+                if callable(getattr(cause, "to_failure_payload", None))
+                else {"message": str(cause)}
+            ),
+        }
+
+    def to_failure_payload(self) -> dict[str, object]:
+        return self._failure_payload
+
+
 class SynchronousExecutionEngine:
     def __init__(
         self,
@@ -274,7 +323,24 @@ class SynchronousExecutionEngine:
                         presence_penalty=self.settings.presence_penalty,
                         max_output_tokens=self.settings.max_output_tokens,
                     )
-                    completion = self._generator.generate(request)
+                    try:
+                        completion = self._generator.generate(request)
+                    except Exception as exc:
+                        if not callable(getattr(exc, "to_failure_payload", None)):
+                            raise
+                        raise ExecutionInterruptedError(
+                            cause=exc,
+                            run_id=run_id,
+                            task_id=task.task_id,
+                            graph_id=graph.graph_id,
+                            round_index=round_index,
+                            node_id=node_id,
+                            prompt_messages=prompt_messages,
+                            incoming=incoming,
+                            previous_output=previous,
+                            partial_turns=turns,
+                            partial_messages=messages,
+                        ) from exc
                     model_calls += 1
                     backend_call_count = completion.metadata.get("backend_call_count")
                     backend_called = completion.metadata.get("backend_called", True)
@@ -387,11 +453,13 @@ class SynchronousExecutionEngine:
                             in {
                                 "aime-private-solve-public-summary-v1",
                                 "single-pass-dual-channel-v1",
+                                "summary-protocol-v2",
                             },
                             "message_compression": self.settings.generation_pipeline
                             in {
                                 "aime-private-solve-public-summary-v1",
                                 "single-pass-dual-channel-v1",
+                                "summary-protocol-v2",
                             },
                         },
                     },

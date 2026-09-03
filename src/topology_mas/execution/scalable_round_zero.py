@@ -416,6 +416,7 @@ def build_round_zero_draws(
     pool_responses: tuple[ScalableRoundZeroPoolResponse, ...],
     draw_seed: int,
     fresh_audit_fraction: float = 0.15,
+    required_generation_pipeline: str | None = None,
 ) -> tuple[RoundZeroDraw, ...]:
     """Create paired draws, reserving a deterministic fraction for fresh audits."""
 
@@ -427,6 +428,14 @@ def build_round_zero_draws(
         response
         for response in pool_responses
         if response.task_id == task_id and response.pool_version == pool_version
+        and (
+            required_generation_pipeline is None
+            or (
+                response.provider_metadata.get("generation_pipeline")
+                == required_generation_pipeline
+                and response.provider_metadata.get("summary_validation_passed") is True
+            )
+        )
     )
     if len(eligible) < node_count:
         raise ValueError("response pool is smaller than node_count")
