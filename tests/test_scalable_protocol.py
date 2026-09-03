@@ -2,6 +2,11 @@ import pytest
 
 from topology_mas.execution.engine import SynchronousExecutionEngine
 from topology_mas.execution.scalable_protocol import (
+    AIME_SUMMARY_INTERFACE_MAX_OUTPUT_TOKENS,
+    AIME_SUMMARY_INTERFACE_MODEL,
+    AIME_SUMMARY_INTERFACE_TEMPERATURE,
+    AIME_SUMMARY_INTERFACE_TOP_K,
+    AIME_SUMMARY_INTERFACE_TOP_P,
     SCALABLE_PUBLIC_SUMMARY_MAX_TOKENS,
     DualChannelValidationError,
     SinglePassDualChannelGenerator,
@@ -230,6 +235,14 @@ def test_summary_budget_is_frozen_at_2048_tokens() -> None:
     assert SCALABLE_PUBLIC_SUMMARY_MAX_TOKENS == 2048
     assert protocol.max_public_tokens == 2048
     assert "summary-only-2048-v1" in protocol.prompt_version
+
+
+def test_aime_summary_model_and_sampling_are_frozen() -> None:
+    assert AIME_SUMMARY_INTERFACE_MODEL == "Qwen/Qwen3-4B-Instruct-2507"
+    assert AIME_SUMMARY_INTERFACE_TEMPERATURE == 0.7
+    assert AIME_SUMMARY_INTERFACE_TOP_P == 0.8
+    assert AIME_SUMMARY_INTERFACE_TOP_K == 20
+    assert AIME_SUMMARY_INTERFACE_MAX_OUTPUT_TOKENS == 16384
 
 
 @pytest.mark.parametrize(
