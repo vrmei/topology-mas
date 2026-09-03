@@ -1,0 +1,54 @@
+{
+  "counts": {
+    "answer_preserved": 1534,
+    "answer_preserved_given_full_parseable": 1519,
+    "fidelity_validation_passed": 1534,
+    "full_parseable": 1543,
+    "state_preserved": 1544,
+    "structure_invalid": 306,
+    "structure_valid": 1614,
+    "total": 1920
+  },
+  "note": "Conditional preservation rates exclude malformed dual-channel outputs. End-to-end rates count them as interface failures, not preserved U states.",
+  "pool_prompt_version": "homogeneous-mas-scalable-v1-summary-only-2048-v1",
+  "pool_version": "r0-pool-668beee4922fa5fab619",
+  "rates": {
+    "answer_preservation_given_parseable_full": 0.9844458846403111,
+    "answer_preservation_over_structurally_valid": 0.9504337050805453,
+    "end_to_end_answer_preserving_interface_over_all": 0.7989583333333333,
+    "end_to_end_state_preserving_interface_over_all": 0.8041666666666667,
+    "fidelity_validation_pass_over_all": 0.7989583333333333,
+    "state_preservation_over_structurally_valid": 0.9566294919454771,
+    "structure_valid_over_all": 0.840625
+  },
+  "state_transitions": {
+    "C->C": 918,
+    "C->O": 3,
+    "O->C": 2,
+    "O->O": 611,
+    "O->U": 9,
+    "U->C": 7,
+    "U->O": 49,
+    "U->U": 15
+  },
+  "validation_errors": {
+    "dual-channel validation failed: PUBLIC_SUMMARY has 5366 tokens; limit is 2048": 1,
+    "dual-channel validation failed: missing, duplicated, reordered, or unclosed tags": 306,
+    "dual-channel validation failed: summary answer '0' differs from full answer '1'": 3,
+    "dual-channel validation failed: summary answer '0' differs from full answer '340'": 1,
+    "dual-channel validation failed: summary answer '100' differs from full answer '69'": 1,
+    "dual-channel validation failed: summary answer '100' differs from full answer '71'": 1,
+    "dual-channel validation failed: summary answer '16' differs from full answer '995'": 1,
+    "dual-channel validation failed: summary answer '28' differs from full answer '0'": 1,
+    "dual-channel validation failed: summary answer '62' differs from full answer '42'": 1,
+    "dual-channel validation failed: summary answer '7' differs from full answer '190'": 2,
+    "dual-channel validation failed: summary answer '736' differs from full answer '7'": 1,
+    "dual-channel validation failed: summary answer '754' differs from full answer '75'": 1,
+    "dual-channel validation failed: summary answer '945' differs from full answer '189'": 1,
+    "dual-channel validation failed: summary answer None differs from full answer '0'": 5,
+    "dual-channel validation failed: summary answer None differs from full answer '1'": 2,
+    "dual-channel validation failed: summary answer None differs from full answer '105'": 1,
+    "dual-channel validation failed: summary answer None differs from full answer '252'": 1,
+    "dual-channel validation failed: summary invented a parseable answer for an unparsed full solution": 56
+  }
+}
