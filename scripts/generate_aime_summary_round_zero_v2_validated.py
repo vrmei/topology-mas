@@ -13,7 +13,7 @@ import hashlib
 import json
 import os
 import tempfile
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from contextlib import ExitStack
 from pathlib import Path
 from typing import Any
@@ -112,12 +112,33 @@ def main() -> None:
     )
     store = ScalableRoundZeroPoolStore(args.output_dir)
     manifest = store.initialize(config=config, tasks=tasks)
-    accepted = {
-        task.task_id: sum(
-            store.load(task_id=task.task_id, pool_slot=slot) is not None
-            for slot in range(args.responses_per_task)
-        )
-        for task in tasks
+    accepted: dict[str, int] = {}
+    used_candidates: dict[str, set[int]] = {task.task_id: set() for task in tasks}
+    for task in tasks:
+        count = 0
+        for slot in range(args.responses_per_task):
+            response = store.load(task_id=task.task_id, pool_slot=slot)
+            if response is None:
+                continue
+            count += 1
+            candidate = response.provider_metadata.get("candidate_index")
+            if isinstance(candidate, int):
+                used_candidates[task.task_id].add(candidate)
+        accepted[task.task_id] = count
+        failure_dir = args.output_dir / "technical_failures" / task.task_id
+        if failure_dir.exists():
+            for path in failure_dir.glob("candidate_*.json"):
+                try:
+                    candidate = json.loads(path.read_text(encoding="utf-8")).get(
+                        "candidate_index"
+                    )
+                except (OSError, json.JSONDecodeError):
+                    continue
+                if isinstance(candidate, int):
+                    used_candidates[task.task_id].add(candidate)
+    next_candidate = {
+        task_id: max(indices, default=-1) + 1
+        for task_id, indices in used_candidates.items()
     }
 
     with ExitStack() as stack:
@@ -162,19 +183,64 @@ def main() -> None:
             result = generator.generate(request)
             return task, candidate, messages, result
 
-        for candidate in range(args.max_candidates_per_task):
-            pending = [
-                task for task in tasks if accepted[task.task_id] < args.responses_per_task
+        task_by_id = {task.task_id: task for task in tasks}
+        in_flight = {task.task_id: 0 for task in tasks}
+
+        def eligible_task_ids() -> list[str]:
+            return [
+                task_id
+                for task_id in task_by_id
+                if accepted[task_id] + in_flight[task_id] < args.responses_per_task
+                and next_candidate[task_id] < args.max_candidates_per_task
             ]
-            if not pending:
-                break
-            with ThreadPoolExecutor(max_workers=min(args.max_workers, len(pending))) as pool:
-                futures = {
-                    pool.submit(generate_candidate, task, candidate): task
-                    for task in pending
-                }
-                for future in as_completed(futures):
-                    task = futures[future]
+
+        def write_progress() -> None:
+            progress = {
+                "scheduler": "continuous_task_pool_v1",
+                "accepted": sum(accepted.values()),
+                "required": len(tasks) * args.responses_per_task,
+                "completed_candidates": sum(len(value) for value in used_candidates.values()),
+                "technical_failures": len(
+                    list((args.output_dir / "technical_failures").rglob("*.json"))
+                ),
+                "active_candidates": sum(in_flight.values()),
+                "per_task": accepted,
+                "next_candidate_per_task": next_candidate,
+            }
+            atomic_json(args.output_dir / "progress.json", progress)
+            print(json.dumps(progress, sort_keys=True), flush=True)
+
+        with ThreadPoolExecutor(max_workers=args.max_workers) as pool:
+            futures: dict[Future[tuple[Any, int, Any, Any]], tuple[Any, int]] = {}
+
+            def fill_capacity() -> None:
+                while len(futures) < args.max_workers:
+                    eligible = eligible_task_ids()
+                    if not eligible:
+                        return
+                    task_id = min(
+                        eligible,
+                        key=lambda value: (
+                            accepted[value] + in_flight[value],
+                            in_flight[value],
+                            next_candidate[value],
+                            value,
+                        ),
+                    )
+                    task = task_by_id[task_id]
+                    candidate = next_candidate[task_id]
+                    next_candidate[task_id] += 1
+                    in_flight[task_id] += 1
+                    future = pool.submit(generate_candidate, task, candidate)
+                    futures[future] = (task, candidate)
+
+            fill_capacity()
+            while futures:
+                completed, _ = wait(tuple(futures), return_when=FIRST_COMPLETED)
+                for future in completed:
+                    task, candidate = futures.pop(future)
+                    in_flight[task.task_id] -= 1
+                    used_candidates[task.task_id].add(candidate)
                     try:
                         _, candidate_index, messages, result = future.result()
                         parsed = protocol.parse_answer(
@@ -253,14 +319,8 @@ def main() -> None:
                             / f"candidate_{candidate:04d}.json",
                             failure,
                         )
-            progress = {
-                "candidate_round": candidate,
-                "accepted": sum(accepted.values()),
-                "required": len(tasks) * args.responses_per_task,
-                "per_task": accepted,
-            }
-            atomic_json(args.output_dir / "progress.json", progress)
-            print(json.dumps(progress, sort_keys=True), flush=True)
+                fill_capacity()
+                write_progress()
 
     missing = {
         task_id: args.responses_per_task - count
