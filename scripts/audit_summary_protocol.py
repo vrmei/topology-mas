@@ -303,7 +303,8 @@ def main() -> None:
         "These are exact Qwen outputs from the frozen 2026 AIME Round-0 pool. ",
         "The JSONL companion preserves the same records in machine-readable form.",
         "",
-        "| # | Task | Slot | Gold | Full answer/state | Summary answer/state | Tokens full→summary |",
+        "| # | Task | Slot | Gold | Full answer/state | Summary answer/state | "
+        "Tokens full→summary |",
         "|---:|---|---:|---:|---|---|---:|",
     ]
     for index, row in enumerate(examples, start=1):
