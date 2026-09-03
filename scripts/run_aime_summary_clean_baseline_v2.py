@@ -12,6 +12,7 @@ import time
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from contextlib import ExitStack
 from pathlib import Path
+from queue import Queue
 from typing import Any
 
 from topology_mas.data.aime import load_aime_jsonl
@@ -293,8 +294,15 @@ def main() -> None:
             )
             for backend in backends
         )
+        # Treat each backend's configured concurrency as a reusable execution slot.
+        # A completed run returns its slot immediately, so the next pending run can
+        # use whichever GPU has capacity instead of being statically pinned by index.
+        engine_slots: Queue[SynchronousExecutionEngine] = Queue()
+        for engine in engines:
+            for _ in range(args.workers_per_backend):
+                engine_slots.put(engine)
 
-        def execute(index: int, spec: ExecutionRunSpec) -> dict[str, Any]:
+        def execute(spec: ExecutionRunSpec) -> dict[str, Any]:
             cached = store.load(spec)
             if cached is not None:
                 trace = cached.trace
@@ -313,8 +321,9 @@ def main() -> None:
                 experiment_seed=spec.experiment_seed,
             )
             run_start = time.monotonic()
+            engine = engine_slots.get()
             try:
-                trace = engines[index % len(engines)].run(
+                trace = engine.run(
                     graph=graph,
                     task=task,
                     condition=RunCondition.CLEAN,
@@ -343,12 +352,14 @@ def main() -> None:
                     "exception_type": type(exc).__name__,
                     "message": str(exc),
                 }
+            finally:
+                engine_slots.put(engine)
 
         with ThreadPoolExecutor(
             max_workers=len(engines) * args.workers_per_backend
         ) as executor:
             futures: dict[Future[dict[str, Any]], int] = {
-                executor.submit(execute, index, spec): index
+                executor.submit(execute, spec): index
                 for index, spec in enumerate(plan)
             }
             for completed, future in enumerate(as_completed(futures), start=1):
