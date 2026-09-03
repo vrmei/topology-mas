@@ -14,6 +14,7 @@ from topology_mas.execution.openai_compatible import OpenAICompatibleTextGenerat
 from topology_mas.execution.scalable_protocol import (
     HuggingFaceTokenCounter,
     SinglePassDualChannelGenerator,
+    require_frozen_aime_summary_settings,
     scalable_aime_protocol,
     scalable_gsm8k_protocol,
 )
@@ -80,6 +81,17 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_parser().parse_args()
+    if args.task_format == "aime":
+        require_frozen_aime_summary_settings(
+            model=args.model,
+            temperature=args.temperature,
+            top_p=args.top_p,
+            top_k=args.top_k,
+            min_p=args.min_p,
+            presence_penalty=args.presence_penalty,
+            max_output_tokens=args.max_output_tokens,
+            max_public_tokens=args.max_public_tokens,
+        )
     tasks = (
         load_aime_jsonl(args.tasks, split="test")
         if args.task_format == "aime"

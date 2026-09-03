@@ -31,6 +31,8 @@ AIME_SUMMARY_INTERFACE_MODEL = "Qwen/Qwen3-4B-Instruct-2507"
 AIME_SUMMARY_INTERFACE_TEMPERATURE = 0.7
 AIME_SUMMARY_INTERFACE_TOP_P = 0.8
 AIME_SUMMARY_INTERFACE_TOP_K = 20
+AIME_SUMMARY_INTERFACE_MIN_P = None
+AIME_SUMMARY_INTERFACE_PRESENCE_PENALTY = None
 AIME_SUMMARY_INTERFACE_MAX_OUTPUT_TOKENS = 16384
 
 SCALABLE_NORMAL_SYSTEM_PROMPT_TEMPLATE = (
@@ -98,6 +100,50 @@ class DualChannelValidationError(ValueError):
         super().__init__(f"dual-channel validation failed: {reason}")
         self.reason = reason
         self.request_id = request_id
+
+
+def require_frozen_aime_summary_settings(
+    *,
+    model: str,
+    temperature: float,
+    top_p: float | None,
+    top_k: int | None,
+    min_p: float | None,
+    presence_penalty: float | None,
+    max_output_tokens: int,
+    max_public_tokens: int,
+) -> None:
+    """Reject silent drift from the named AIME summary-interface version."""
+
+    observed = {
+        "model": model,
+        "temperature": temperature,
+        "top_p": top_p,
+        "top_k": top_k,
+        "min_p": min_p,
+        "presence_penalty": presence_penalty,
+        "max_output_tokens": max_output_tokens,
+        "max_public_tokens": max_public_tokens,
+    }
+    expected = {
+        "model": AIME_SUMMARY_INTERFACE_MODEL,
+        "temperature": AIME_SUMMARY_INTERFACE_TEMPERATURE,
+        "top_p": AIME_SUMMARY_INTERFACE_TOP_P,
+        "top_k": AIME_SUMMARY_INTERFACE_TOP_K,
+        "min_p": AIME_SUMMARY_INTERFACE_MIN_P,
+        "presence_penalty": AIME_SUMMARY_INTERFACE_PRESENCE_PENALTY,
+        "max_output_tokens": AIME_SUMMARY_INTERFACE_MAX_OUTPUT_TOKENS,
+        "max_public_tokens": SCALABLE_PUBLIC_SUMMARY_MAX_TOKENS,
+    }
+    if observed != expected:
+        differences = {
+            key: {"expected": expected[key], "observed": observed[key]}
+            for key in expected
+            if observed[key] != expected[key]
+        }
+        raise ValueError(
+            f"frozen AIME summary settings differ from protocol: {differences}"
+        )
 
 
 @dataclass(frozen=True)

@@ -13,6 +13,7 @@ from topology_mas.execution.scalable_protocol import (
     freeze_attack_public_summary,
     parse_aime_summary_answer,
     parse_dual_channel_output,
+    require_frozen_aime_summary_settings,
     scalable_gsm8k_protocol,
 )
 from topology_mas.execution.schemas import (
@@ -243,6 +244,23 @@ def test_aime_summary_model_and_sampling_are_frozen() -> None:
     assert AIME_SUMMARY_INTERFACE_TOP_P == 0.8
     assert AIME_SUMMARY_INTERFACE_TOP_K == 20
     assert AIME_SUMMARY_INTERFACE_MAX_OUTPUT_TOKENS == 16384
+
+
+def test_frozen_aime_summary_settings_reject_drift() -> None:
+    values = {
+        "model": AIME_SUMMARY_INTERFACE_MODEL,
+        "temperature": AIME_SUMMARY_INTERFACE_TEMPERATURE,
+        "top_p": AIME_SUMMARY_INTERFACE_TOP_P,
+        "top_k": AIME_SUMMARY_INTERFACE_TOP_K,
+        "min_p": None,
+        "presence_penalty": None,
+        "max_output_tokens": AIME_SUMMARY_INTERFACE_MAX_OUTPUT_TOKENS,
+        "max_public_tokens": SCALABLE_PUBLIC_SUMMARY_MAX_TOKENS,
+    }
+    require_frozen_aime_summary_settings(**values)
+    values["temperature"] = 0.6
+    with pytest.raises(ValueError, match="temperature"):
+        require_frozen_aime_summary_settings(**values)
 
 
 @pytest.mark.parametrize(

@@ -13,11 +13,15 @@ public summary.
 - `temperature = 0.7`
 - `top_p = 0.8`
 - `top_k = 20`
+- `min_p = null`
+- `presence_penalty = null`
 - `max_tokens = 16384` for the complete two-channel output
 - `PUBLIC_SUMMARY <= 2048` tokens under the same Qwen tokenizer
 
 Changing any of these values, the model, prompts, parser, validation rules, or public
 budget creates a new protocol version. It must not be mixed into this version.
+The AIME Round-0 pool CLI and clean baseline runner reject mismatching settings before
+issuing a request. Fixed/Adaptive runners must call the same settings guard.
 
 ## Normal-node system prompt
 

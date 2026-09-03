@@ -25,6 +25,7 @@ from topology_mas.execution.openai_compatible import OpenAICompatibleTextGenerat
 from topology_mas.execution.scalable_protocol import (
     HuggingFaceTokenCounter,
     SinglePassDualChannelGenerator,
+    require_frozen_aime_summary_settings,
     scalable_aime_protocol,
 )
 from topology_mas.execution.scalable_round_zero import (
@@ -112,6 +113,16 @@ def atomic_text(path: Path, value: str) -> None:
 
 def main() -> None:
     args = build_parser().parse_args()
+    require_frozen_aime_summary_settings(
+        model=args.model,
+        temperature=args.temperature,
+        top_p=args.top_p,
+        top_k=args.top_k,
+        min_p=None,
+        presence_penalty=None,
+        max_output_tokens=args.max_output_tokens,
+        max_public_tokens=2048,
+    )
     if args.workers_per_backend < 1:
         raise ValueError("workers-per-backend must be positive")
     tasks = load_aime_jsonl(args.tasks, split="test")

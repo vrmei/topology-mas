@@ -13,7 +13,9 @@ from typing import Any
 from topology_mas.execution.aime import parse_aime_answer
 from topology_mas.execution.scalable_protocol import (
     AIME_SUMMARY_INTERFACE_MAX_OUTPUT_TOKENS,
+    AIME_SUMMARY_INTERFACE_MIN_P,
     AIME_SUMMARY_INTERFACE_MODEL,
+    AIME_SUMMARY_INTERFACE_PRESENCE_PENALTY,
     AIME_SUMMARY_INTERFACE_TEMPERATURE,
     AIME_SUMMARY_INTERFACE_TOP_K,
     AIME_SUMMARY_INTERFACE_TOP_P,
@@ -103,6 +105,8 @@ def protocol_manifest() -> dict[str, Any]:
             "temperature": AIME_SUMMARY_INTERFACE_TEMPERATURE,
             "top_p": AIME_SUMMARY_INTERFACE_TOP_P,
             "top_k": AIME_SUMMARY_INTERFACE_TOP_K,
+            "min_p": AIME_SUMMARY_INTERFACE_MIN_P,
+            "presence_penalty": AIME_SUMMARY_INTERFACE_PRESENCE_PENALTY,
             "max_tokens_for_joint_completion": AIME_SUMMARY_INTERFACE_MAX_OUTPUT_TOKENS,
             "max_public_summary_tokens": SCALABLE_PUBLIC_SUMMARY_MAX_TOKENS,
         },
@@ -293,6 +297,44 @@ def main() -> None:
     with (output / "examples_full.jsonl").open("w", encoding="utf-8", newline="\n") as handle:
         for index, row in enumerate(examples, start=1):
             handle.write(json.dumps({"example_index": index, **row}, ensure_ascii=False) + "\n")
+    markdown = [
+        "# Actual full-response to public-summary examples",
+        "",
+        "These are exact Qwen outputs from the frozen 2026 AIME Round-0 pool. ",
+        "The JSONL companion preserves the same records in machine-readable form.",
+        "",
+        "| # | Task | Slot | Gold | Full answer/state | Summary answer/state | Tokens full→summary |",
+        "|---:|---|---:|---:|---|---|---:|",
+    ]
+    for index, row in enumerate(examples, start=1):
+        markdown.append(
+            f"| {index} | `{row['task_id']}` | {row['pool_slot']} | "
+            f"{row['gold_answer']} | {row['full_parsed_answer']}/{row['full_state']} | "
+            f"{row['summary_parsed_answer']}/{row['summary_state']} | "
+            f"{row['full_tokens']}→{row['summary_tokens']} |"
+        )
+    for index, row in enumerate(examples, start=1):
+        markdown.extend(
+            [
+                "",
+                f"## Example {index}: {row['full_state']}→{row['summary_state']}",
+                "",
+                "Full response (`FULL_SOLUTION` content):",
+                "",
+                "````text",
+                row["full_response"],
+                "````",
+                "",
+                "Public summary (`PUBLIC_SUMMARY` content):",
+                "",
+                "````text",
+                row["summary"],
+                "````",
+            ]
+        )
+    (output / "examples_full.md").write_text(
+        "\n".join(markdown) + "\n", encoding="utf-8"
+    )
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
 
 
