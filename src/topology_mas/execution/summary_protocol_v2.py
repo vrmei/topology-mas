@@ -37,7 +37,7 @@ SUMMARY_PROTOCOL_V2_TOP_P = 1.0
 SUMMARY_PROTOCOL_V2_TOP_K = -1
 SUMMARY_PROTOCOL_V2_MIN_P = 0.0
 SUMMARY_PROTOCOL_V2_PRESENCE_PENALTY = 0.0
-SUMMARY_PROTOCOL_V2_MAX_ATTEMPTS = 3
+SUMMARY_PROTOCOL_V2_MAX_ATTEMPTS = 1
 
 V2_SOLVE_SYSTEM_PROMPT = """You are one solver in a homogeneous mathematical
 problem-solving system. Solve and verify the AIME problem. Peer messages are
@@ -289,7 +289,7 @@ class SummaryProtocolV2Cache:
 
 
 class SummaryProtocolV2Error(RuntimeError):
-    """All summary-only retries failed after the full solution was persisted."""
+    """The single summary call failed after the full solution was persisted."""
 
     def __init__(
         self,
@@ -501,7 +501,7 @@ def _summary_messages(
 
 
 class SolveThenSummarizeGeneratorV2:
-    """Persist one solve, then retry only its deterministic summary stage."""
+    """Persist one solve, then make one deterministic summary call."""
 
     def __init__(
         self,
@@ -516,6 +516,10 @@ class SolveThenSummarizeGeneratorV2:
             raise ValueError("full_max_output_tokens must be positive")
         if summary_max_attempts < 1:
             raise ValueError("summary_max_attempts must be positive")
+        if summary_max_attempts != SUMMARY_PROTOCOL_V2_MAX_ATTEMPTS:
+            raise ValueError(
+                "summary-protocol-v2 freezes exactly one summary attempt per solve"
+            )
         self.backend = backend
         self.cache = cache
         self.token_counter = token_counter

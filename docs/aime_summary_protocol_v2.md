@@ -45,7 +45,8 @@ Summary stage:
 - `min_p=0.0`
 - `presence_penalty=0.0`
 - `max_tokens=2048`
-- at most three attempts; retries change only the summary prompt and never repeat solve
+- exactly one summary attempt per solve; there is no automatic summary retry
+- provider-level request attempts are also set to one in the frozen pilot CLI
 
 ## Solve prompt
 
@@ -105,8 +106,8 @@ The entire response must be at most 2048 model tokens. Do not emit XML or JSON.
 ```
 
 The user prompt contains the immutable full solution and a programmatically extracted
-answer status. A retry additionally gives the previous validation reason. It does not
-request new mathematical work.
+answer status. A failed summary is recorded without a second summary call and never
+causes the full solution to be regenerated.
 
 ## Parser and fidelity gate
 
@@ -134,7 +135,7 @@ Consequently, process restart or summary failure cannot silently re-solve a node
 Summary reuse is allowed; solve reuse remains scoped by the solve request identity and
 therefore does not cross topology, condition, task, or run boundaries.
 
-A local summary failure is not converted to state `U`. After all summary attempts fail,
+A local summary failure is not converted to state `U`. If the single summary attempt fails,
 the task-graph run stops and records:
 
 - the complete full completion and parsed status;
@@ -167,7 +168,7 @@ tasks. Report overall and per-band:
 - C/O/U state preservation;
 - `U -> parsed` rate;
 - solve `finish_reason=length` rate;
-- summary retry rate and all attempt-level failures.
+- summary failure rate and the raw single-attempt failures.
 
 The 480-run clean baseline is blocked unless:
 
@@ -183,4 +184,3 @@ lossless. It only authorizes the frozen v2 interface for the next experiment.
 - Pilot: `scripts/run_summary_protocol_v2_pilot.py`
 - Full Round-0 pool after the gate: `scripts/generate_aime_summary_round_zero_v2.py`
 - Gate-protected baseline: `scripts/run_aime_summary_clean_baseline_v2.py`
-

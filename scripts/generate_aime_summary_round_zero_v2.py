@@ -44,7 +44,7 @@ def parser() -> argparse.ArgumentParser:
     value.add_argument("--base-seed", type=int, default=20260903)
     value.add_argument("--max-workers", type=int, default=24)
     value.add_argument("--timeout-seconds", type=float, default=3600.0)
-    value.add_argument("--provider-max-attempts", type=int, default=3)
+    value.add_argument("--provider-max-attempts", type=int, default=1)
     return value
 
 
@@ -136,4 +136,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

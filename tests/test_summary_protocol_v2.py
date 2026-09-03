@@ -106,12 +106,9 @@ def test_v2_uses_separate_calls_and_python_assembles_the_envelope(tmp_path) -> N
     assert result.metadata["summary_validation_passed"] is True
 
 
-def test_summary_retry_does_not_repeat_the_solve(tmp_path) -> None:
+def test_failed_summary_is_not_retried_and_does_not_repeat_the_solve(tmp_path) -> None:
     backend = ScriptedBackend(
-        [
-            "I ignored the required structure. FINAL_ANSWER: \\boxed{042}",
-            "SOLUTION_SUMMARY:\nFaithful repair.\nFINAL_ANSWER: \\boxed{042}",
-        ]
+        ["I ignored the required structure. FINAL_ANSWER: \\boxed{042}"]
     )
     generator = SolveThenSummarizeGeneratorV2(
         backend,
@@ -119,15 +116,13 @@ def test_summary_retry_does_not_repeat_the_solve(tmp_path) -> None:
         token_counter=count_words,
     )
 
-    result = generator.generate(request())
+    with pytest.raises(SummaryProtocolV2Error):
+        generator.generate(request())
 
     solve_requests = [row for row in backend.requests if "solve-v2" in row.request_id]
     summary_requests = [row for row in backend.requests if "summary-v2" in row.request_id]
     assert len(solve_requests) == 1
-    assert len(summary_requests) == 2
-    assert result.metadata["summary_attempt_count"] == 2
-    assert result.metadata["summary_retry_count"] == 1
-    assert "RETRY_NOTE" in summary_requests[1].messages[-1].content
+    assert len(summary_requests) == 1
 
 
 def test_validated_summary_cache_reuses_only_the_transform(tmp_path) -> None:
@@ -230,7 +225,7 @@ def test_all_failed_summaries_raise_with_complete_attempts(tmp_path) -> None:
 
     payload = captured.value.to_failure_payload()
     assert payload["full_completion"]["raw_text"].startswith("Complete private")
-    assert len(payload["summary_attempts"]) == 3
+    assert len(payload["summary_attempts"]) == 1
     assert all(item["raw_text"] == "bad summary" for item in payload["summary_attempts"])
     assert len([row for row in backend.requests if "solve-v2" in row.request_id]) == 1
 
@@ -297,5 +292,5 @@ def test_engine_failure_retains_partial_trace_and_failed_completion(tmp_path) ->
     assert payload["node_id"] == 1
     assert len(payload["partial_turns"]) == 2
     assert len(payload["partial_messages"]) == 1
-    assert len(payload["cause"]["summary_attempts"]) == 3
+    assert len(payload["cause"]["summary_attempts"]) == 1
     assert payload["cause"]["full_completion"]["raw_text"].startswith("Full solution")

@@ -52,7 +52,7 @@ def parser() -> argparse.ArgumentParser:
     value.add_argument("--base-seed", type=int, default=20260903)
     value.add_argument("--max-workers", type=int, default=24)
     value.add_argument("--timeout-seconds", type=float, default=3600.0)
-    value.add_argument("--provider-max-attempts", type=int, default=3)
+    value.add_argument("--provider-max-attempts", type=int, default=1)
     return value
 
 
@@ -207,6 +207,7 @@ def main() -> None:
             "planned_jobs": len(tasks) * args.responses_per_task,
             "difficulty_band_counts": band_counts,
             "model": args.model,
+            "provider_max_attempts": args.provider_max_attempts,
             "full_sampling": {
                 "temperature": 0.7,
                 "top_p": 0.8,

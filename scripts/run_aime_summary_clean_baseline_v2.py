@@ -62,7 +62,7 @@ def parser() -> argparse.ArgumentParser:
     value.add_argument("--tokenizer-cache-dir", type=Path)
     value.add_argument("--workers-per-backend", type=int, default=24)
     value.add_argument("--timeout-seconds", type=float, default=3600.0)
-    value.add_argument("--provider-max-attempts", type=int, default=3)
+    value.add_argument("--provider-max-attempts", type=int, default=1)
     value.add_argument("--draw-seed", type=int, default=20260903)
     return value
 
@@ -204,6 +204,7 @@ def main() -> None:
         "cross_node_representation": "validated_summary_only",
         "self_history_representation": "previous_full_solution",
         "generation_pipeline": SUMMARY_PROTOCOL_V2,
+        "provider_max_attempts": args.provider_max_attempts,
         "full_sampling": {
             "temperature": 0.7,
             "top_p": 0.8,
