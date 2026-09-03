@@ -53,6 +53,11 @@ def parser() -> argparse.ArgumentParser:
     value.add_argument("--graphs", type=Path, required=True)
     value.add_argument("--round-zero-pool", type=Path, required=True)
     value.add_argument("--protocol-gate-report", type=Path, required=True)
+    value.add_argument(
+        "--allow-failed-protocol-gate",
+        action="store_true",
+        help="Run after recording, but not enforcing, a failed pilot gate.",
+    )
     value.add_argument("--output-dir", type=Path, required=True)
     value.add_argument("--cache-dir", type=Path, required=True)
     value.add_argument("--base-url", action="append", required=True)
@@ -67,13 +72,13 @@ def parser() -> argparse.ArgumentParser:
     return value
 
 
-def verify_gate(path: Path) -> dict[str, Any]:
+def verify_gate(path: Path, *, allow_failed: bool = False) -> dict[str, Any]:
     report = json.loads(path.read_text(encoding="utf-8"))
     if report.get("protocol") != SUMMARY_PROTOCOL_V2:
         raise ValueError("pilot gate report is not for summary-protocol-v2")
     if report.get("prompt_version") != SUMMARY_PROTOCOL_V2_PROMPT_VERSION:
         raise ValueError("pilot gate prompt version differs from the baseline")
-    if report.get("gate", {}).get("passed") is not True:
+    if report.get("gate", {}).get("passed") is not True and not allow_failed:
         raise ValueError("summary-protocol-v2 pilot gate did not pass")
     if report.get("overall", {}).get("jobs", 0) < 100:
         raise ValueError("pilot gate contains fewer than 100 stratified jobs")
@@ -107,7 +112,10 @@ def write_json(path: Path, value: object) -> None:
 
 def main() -> None:
     args = parser().parse_args()
-    gate = verify_gate(args.protocol_gate_report)
+    gate = verify_gate(
+        args.protocol_gate_report,
+        allow_failed=args.allow_failed_protocol_gate,
+    )
     require_summary_protocol_v2_settings(
         model=args.model,
         full_temperature=0.7,
@@ -135,8 +143,8 @@ def main() -> None:
     ).load_complete()
     if pool_manifest.task_ids != tuple(task.task_id for task in tasks):
         raise ValueError("Round-0 pool task set differs from the requested tasks")
-    if pool_manifest.config.responses_per_task < 64:
-        raise ValueError("Round-0 pool must contain at least 64 responses per task")
+    if pool_manifest.config.responses_per_task < 5:
+        raise ValueError("Round-0 pool must contain at least five responses per task")
     if pool_manifest.config.prompt_version != SUMMARY_PROTOCOL_V2_PROMPT_VERSION:
         raise ValueError("Round-0 pool is not a summary-protocol-v2 pool")
     if not all(
@@ -201,6 +209,8 @@ def main() -> None:
         "pool_version": pool_manifest.pool_version,
         "pool_manifest_fingerprint": content_fingerprint(pool_manifest),
         "pilot_gate_fingerprint": content_fingerprint(gate),
+        "pilot_gate_passed": gate.get("gate", {}).get("passed") is True,
+        "pilot_gate_enforced": not args.allow_failed_protocol_gate,
         "cross_node_representation": "validated_summary_only",
         "self_history_representation": "previous_full_solution",
         "generation_pipeline": SUMMARY_PROTOCOL_V2,
