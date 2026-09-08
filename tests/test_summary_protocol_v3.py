@@ -8,6 +8,7 @@ from topology_mas.execution.summary_protocol_v3 import (
     SUMMARY_PROTOCOL_V3,
     SolveThenSummarizeGeneratorV3,
     SummaryProtocolV3Cache,
+    SummaryProtocolV3Error,
     parse_summary_envelope_v3,
     sanitize_retry_summary_body_v3,
     serialize_public_summary_v3,
@@ -290,28 +291,21 @@ class RecoveryBackend:
         )
 
 
-def test_retry_prompt_uses_frozen_short_recovery_policy(tmp_path):
-    backend = RecoveryBackend([
-        ("An unfinished overlong summary", "length"),
-        ("Use the decisive identity and obtain 42.", "stop"),
-    ])
-    result = SolveThenSummarizeGeneratorV3(
-        backend,
-        cache=SummaryProtocolV3Cache(tmp_path),
-        token_counter=count_words,
-    ).generate(request())
+def test_single_summary_length_stop_remains_a_technical_failure(tmp_path):
+    backend = RecoveryBackend([("An unfinished overlong summary", "length")])
+    with pytest.raises(SummaryProtocolV3Error, match="failed after 1 summary attempts"):
+        SolveThenSummarizeGeneratorV3(
+            backend,
+            cache=SummaryProtocolV3Cache(tmp_path),
+            token_counter=count_words,
+        ).generate(request())
 
-    assert len(backend.requests) == 3
-    retry_prompt = backend.requests[2].messages[-1].content
-    assert "v3-technical-recovery-r1" in retry_prompt
-    assert "at most 1800 model tokens" in retry_prompt
-    assert result.metadata["summary_retry_count"] == 1
-    assert result.metadata["summary_technical_recovery_policy"] == (
-        "v3-technical-recovery-r1"
-    )
+    assert len(backend.requests) == 2
+    summary_prompt = backend.requests[1].messages[0].content
+    assert "target at most 1800 model tokens" in summary_prompt
 
 
-def test_retry_sanitizer_removes_only_protocol_owned_labels(tmp_path):
+def test_single_call_sanitizer_removes_only_protocol_owned_labels(tmp_path):
     body, markers = sanitize_retry_summary_body_v3(
         "The derivation gives 42.\nFINAL_ANSWER: \\boxed{042}"
     )
@@ -320,7 +314,6 @@ def test_retry_sanitizer_removes_only_protocol_owned_labels(tmp_path):
     assert "Concluding value:" in body
 
     backend = RecoveryBackend([
-        ("FINAL_ANSWER: \\boxed{042}", "stop"),
         ("The derivation gives 42.\nFINAL_ANSWER: \\boxed{042}", "stop"),
     ])
     result = SolveThenSummarizeGeneratorV3(
@@ -332,6 +325,8 @@ def test_retry_sanitizer_removes_only_protocol_owned_labels(tmp_path):
 
     assert envelope.public_summary.count("FINAL_ANSWER:") == 1
     assert "Concluding value:" in envelope.public_summary
-    assert result.metadata["summary_attempts"][1]["sanitized_markers"] == [
+    assert len(backend.requests) == 2
+    assert result.metadata["summary_retry_count"] == 0
+    assert result.metadata["summary_attempts"][0]["sanitized_markers"] == [
         "final_answer:"
     ]

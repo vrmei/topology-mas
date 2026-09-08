@@ -33,6 +33,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--recovery-output", type=Path, required=True)
     parser.add_argument("--destination-output", type=Path, required=True)
     parser.add_argument("--manifest", type=Path, required=True)
+    parser.add_argument(
+        "--quarantine-existing",
+        type=Path,
+        help="Move conflicting destination traces here before replacement.",
+    )
     return parser.parse_args()
 
 
@@ -63,11 +68,27 @@ def main() -> None:
         src_hash = sha256(src)
         dst = dst_dir / src.name
         action = "copied"
+        previous_hash = None
+        quarantine_path = None
         if dst.exists():
-            if sha256(dst) != src_hash:
+            previous_hash = sha256(dst)
+            if previous_hash == src_hash:
+                action = "already_identical"
+            elif args.quarantine_existing is None:
                 raise SystemExit(f"Refusing to overwrite conflicting successful trace: {dst}")
-            action = "already_identical"
-        else:
+            else:
+                args.quarantine_existing.mkdir(parents=True, exist_ok=True)
+                quarantine_path = args.quarantine_existing / dst.name
+                if quarantine_path.exists():
+                    if sha256(quarantine_path) != previous_hash:
+                        raise SystemExit(f"Conflicting quarantine trace already exists: {quarantine_path}")
+                    dst.unlink()
+                else:
+                    os.replace(dst, quarantine_path)
+                action = "quarantined_and_replaced"
+
+        if not dst.exists():
+            # This branch handles both a new trace and a quarantined replacement.
             fd, temporary_name = tempfile.mkstemp(prefix=f".{src.name}.", dir=dst_dir)
             os.close(fd)
             temporary = Path(temporary_name)
@@ -85,6 +106,8 @@ def main() -> None:
                 "source": str(src),
                 "destination": str(dst),
                 "sha256": src_hash,
+                "previous_sha256": previous_hash,
+                "quarantine": str(quarantine_path) if quarantine_path else None,
                 "action": action,
             }
         )

@@ -30,7 +30,7 @@ from topology_mas.models import AdversarialAnswer, MessageRecord, MessageType, T
 SUMMARY_PROTOCOL_V3 = "summary-protocol-v3"
 SUMMARY_PROTOCOL_V3_PROMPT_VERSION = "homogeneous-aime-body-summary-3000-v3"
 SUMMARY_PROTOCOL_V3_MODEL = "Qwen/Qwen3-4B-Instruct-2507"
-SUMMARY_PROTOCOL_V3_FULL_MAX_TOKENS = 65536
+SUMMARY_PROTOCOL_V3_FULL_MAX_TOKENS = 20000
 SUMMARY_PROTOCOL_V3_PUBLIC_MAX_TOKENS = 3000
 SUMMARY_PROTOCOL_V3_BODY_MAX_TOKENS = 3000
 SUMMARY_PROTOCOL_V3_TEMPERATURE = 0.0
@@ -38,8 +38,8 @@ SUMMARY_PROTOCOL_V3_TOP_P = 1.0
 SUMMARY_PROTOCOL_V3_TOP_K = -1
 SUMMARY_PROTOCOL_V3_MIN_P = 0.0
 SUMMARY_PROTOCOL_V3_PRESENCE_PENALTY = 0.0
-SUMMARY_PROTOCOL_V3_MAX_ATTEMPTS = 2
-SUMMARY_PROTOCOL_V3_TECHNICAL_RECOVERY = "v3-technical-recovery-r1"
+SUMMARY_PROTOCOL_V3_MAX_ATTEMPTS = 1
+SUMMARY_PROTOCOL_V3_TECHNICAL_RECOVERY = "v3-20k-single-summary-r1"
 SUMMARY_PROTOCOL_V3_RECOVERY_BODY_TARGET_TOKENS = 1800
 
 V3_SOLVE_SYSTEM_PROMPT = """You are one solver in a homogeneous mathematical
@@ -73,7 +73,8 @@ claims already present in it. Candidate answers that already occur in the source
 be mentioned faithfully, but do not promote, correct, or replace them. The frozen
 terminal state is controlled by Python, not by you.
 
-The body must be at most 3000 model tokens."""
+Be concise: target at most 1800 model tokens and always stop before 3000 model
+tokens. End immediately after the last mathematical sentence."""
 
 V3_ADAPTIVE_ATTACK_SYSTEM_PROMPT = """You are the adaptive adversarial solver in
 a homogeneous multi-agent reasoning system. Maintain the frozen target answer while
@@ -760,7 +761,7 @@ class SolveThenSummarizeGeneratorV3:
                         error = None
                     except ValueError as exc:
                         error = str(exc)
-                        if attempt > 1 and "forbidden protocol marker" in error:
+                        if "forbidden protocol marker" in error:
                             sanitized_text, sanitized_markers = (
                                 sanitize_retry_summary_body_v3(public.raw_text)
                             )
@@ -810,7 +811,7 @@ class SolveThenSummarizeGeneratorV3:
                             "validation_error": error,
                             "technical_recovery_policy": (
                                 SUMMARY_PROTOCOL_V3_TECHNICAL_RECOVERY
-                                if attempt > 1 else None
+                                if sanitized_markers else None
                             ),
                             "sanitized_markers": list(sanitized_markers),
                         }
@@ -910,7 +911,10 @@ class SolveThenSummarizeGeneratorV3:
                 "summary_retry_count": max(0, len(summary_attempts) - 1),
                 "summary_technical_recovery_policy": (
                     SUMMARY_PROTOCOL_V3_TECHNICAL_RECOVERY
-                    if len(summary_attempts) > 1 else None
+                    if any(
+                        attempt.get("sanitized_markers")
+                        for attempt in summary_attempts
+                    ) else None
                 ),
                 "summary_attempts": summary_attempts,
             },
