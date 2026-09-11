@@ -17,7 +17,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from scipy.stats import spearmanr
+from scipy.stats import rankdata, spearmanr
 
 
 LONG_TO_SHORT = {"correct": "C", "target": "T", "other": "O", "unparsed": "U"}
@@ -53,6 +53,40 @@ def q975(values: np.ndarray) -> float:
     return float(np.quantile(values, 0.975)) if len(values) else np.nan
 
 
+def bh_adjust(values: pd.Series) -> pd.Series:
+    """Benjamini-Hochberg adjustment, preserving the original index."""
+    result = pd.Series(np.nan, index=values.index, dtype=float)
+    finite = values.dropna().sort_values()
+    if finite.empty:
+        return result
+    n = len(finite)
+    adjusted = np.minimum.accumulate(
+        (finite.to_numpy(float) * n / np.arange(1, n + 1))[::-1]
+    )[::-1]
+    result.loc[finite.index] = np.minimum(adjusted, 1.0)
+    return result
+
+
+def spearman_permutation(
+    x: np.ndarray, y: np.ndarray, reps: int, rng: np.random.Generator
+) -> tuple[float, float]:
+    xr = rankdata(x).astype(float); yr = rankdata(y).astype(float)
+    xr -= xr.mean(); yr -= yr.mean()
+    denominator = float(np.sqrt(np.dot(xr, xr) * np.dot(yr, yr)))
+    if denominator == 0:
+        return np.nan, np.nan
+    observed = float(np.dot(xr, yr) / denominator)
+    exceed = 0
+    completed = 0
+    while completed < reps:
+        size = min(2000, reps - completed)
+        orders = np.argsort(rng.random((size, len(yr))), axis=1)
+        null = (yr[orders] @ xr) / denominator
+        exceed += int(np.count_nonzero(np.abs(null) >= abs(observed) - 1e-15))
+        completed += size
+    return observed, (exceed + 1) / (reps + 1)
+
+
 def build_endpoint_panel(updates: pd.DataFrame) -> pd.DataFrame:
     readout = updates[updates.receiver_scope.eq("readout")].copy()
     required = {1, 2, 3}
@@ -61,7 +95,7 @@ def build_endpoint_panel(updates: pd.DataFrame) -> pd.DataFrame:
     key_frame = complete_keys.to_frame(index=False)
     readout = readout.merge(key_frame, on=["system", "run_key"], how="inner")
 
-    identity = ["system", "run_key", "task_id", "graph_id", "m", "attack_node"]
+    identity = ["system", "run_key", "task_id", "graph_id", "n", "m", "attack_node"]
     rows: list[dict] = []
     for item in readout.itertuples(index=False):
         common = {name: getattr(item, name) for name in identity}
@@ -95,14 +129,14 @@ def build_endpoint_panel(updates: pd.DataFrame) -> pd.DataFrame:
 def graph_metrics(panel: pd.DataFrame) -> pd.DataFrame:
     clean = (
         panel.drop_duplicates(["system", "graph_id", "task_id", "round"])
-        .groupby(["system", "graph_id", "m", "round"], as_index=False)
+        .groupby(["system", "graph_id", "n", "m", "round"], as_index=False)
         .agg(U=("clean_correct", "mean"), tasks=("task_id", "nunique"))
     )
     attack = (
-        panel.groupby(["system", "graph_id", "m", "round"], as_index=False)
+        panel.groupby(["system", "graph_id", "n", "m", "round"], as_index=False)
         .agg(R=("attack_correct", "mean"), attack_cells=("run_key", "nunique"))
     )
-    result = clean.merge(attack, on=["system", "graph_id", "m", "round"], validate="one_to_one")
+    result = clean.merge(attack, on=["system", "graph_id", "n", "m", "round"], validate="one_to_one")
     result["L"] = result.U - result.R
     round_zero_loss = result[result["round"].eq(0)].set_index(
         ["system", "graph_id"]
@@ -119,7 +153,7 @@ def graph_metrics(panel: pd.DataFrame) -> pd.DataFrame:
 
 def density_metrics(graphs: pd.DataFrame) -> pd.DataFrame:
     return (
-        graphs.groupby(["system", "m", "round"], as_index=False)
+        graphs.groupby(["system", "n", "m", "round"], as_index=False)
         .agg(
             U=("U", "mean"),
             U_sd=("U", "std"),
@@ -199,19 +233,24 @@ def best_round_counts(frame: pd.DataFrame, unit: str) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def edge_associations(graphs: pd.DataFrame) -> pd.DataFrame:
+def edge_associations(
+    graphs: pd.DataFrame, reps: int, rng: np.random.Generator
+) -> pd.DataFrame:
     rows = []
     for (system, round_index), source in graphs.groupby(["system", "round"]):
         for metric in ("U", "R", "L", "L_adjusted"):
             if source.m.nunique() <= 1 or source[metric].nunique() <= 1:
                 rho, p_value = np.nan, np.nan
             else:
-                rho, p_value = spearmanr(source.m, source[metric])
+                rho, p_value = spearman_permutation(
+                    source.m.to_numpy(float), source[metric].to_numpy(float), reps, rng
+                )
             rows.append(
                 {
                     "system": system, "round": int(round_index), "metric": metric,
-                    "spearman_rho": rho, "p_value": p_value,
+                    "spearman_rho": rho, "permutation_p": p_value,
                     "graphs": source.graph_id.nunique(), "edge_levels": source.m.nunique(),
+                    "permutation_reps": reps,
                 }
             )
     return pd.DataFrame(rows)
@@ -265,6 +304,50 @@ def bootstrap_ur(
                         "bootstrap_reps": reps,
                     }
                 )
+    return pd.DataFrame(estimates), pd.DataFrame(increments)
+
+
+def bootstrap_ur_by_density(
+    panel: pd.DataFrame, reps: int, rng: np.random.Generator
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Task-cluster bootstrap for every fixed (n,m) configuration."""
+    estimates: list[dict] = []
+    increments: list[dict] = []
+    for (system, node_count, edge_count), frame in panel.groupby(["system", "n", "m"]):
+        tasks = np.array(sorted(frame.task_id.unique()))
+        per_task = task_metrics(frame)
+        rounds = np.array([0, 1, 2, 3])
+        arrays = {
+            metric: per_task.pivot(index="task_id", columns="round", values=metric)
+            .reindex(index=tasks, columns=rounds)
+            .to_numpy(float)
+            for metric in ("U", "R", "L", "L_adjusted")
+        }
+        weights = rng.multinomial(len(tasks), np.full(len(tasks), 1 / len(tasks)), size=reps)
+        draws = {metric: (weights @ values) / len(tasks) for metric, values in arrays.items()}
+        for metric, values in arrays.items():
+            point = np.nanmean(values, axis=0)
+            for j, round_index in enumerate(rounds):
+                estimates.append({
+                    "system": system, "n": int(node_count), "m": int(edge_count),
+                    "metric": metric, "round": int(round_index),
+                    "estimate": float(point[j]),
+                    "ci95_low": q025(draws[metric][:, j]),
+                    "ci95_high": q975(draws[metric][:, j]),
+                    "tasks": len(tasks), "graphs": int(frame.graph_id.nunique()),
+                    "attack_cells": int(frame.run_key.nunique()),
+                })
+            for j in range(1, len(rounds)):
+                diff = draws[metric][:, j] - draws[metric][:, j - 1]
+                increments.append({
+                    "system": system, "n": int(node_count), "m": int(edge_count),
+                    "metric": metric, "from_round": int(rounds[j - 1]),
+                    "to_round": int(rounds[j]), "estimate": float(point[j] - point[j - 1]),
+                    "ci95_low": q025(diff), "ci95_high": q975(diff),
+                    "p_boot_two_sided": finite_p_two_sided(diff),
+                    "tasks": len(tasks), "graphs": int(frame.graph_id.nunique()),
+                    "attack_cells": int(frame.run_key.nunique()), "bootstrap_reps": reps,
+                })
     return pd.DataFrame(estimates), pd.DataFrame(increments)
 
 
@@ -329,7 +412,7 @@ def build_alignment_events(updates: pd.DataFrame) -> pd.DataFrame:
         readout.prev_state.ne("T") & readout.peer_plurality.eq("T")
     )
     keep = [
-        "system", "run_key", "task_id", "graph_id", "m", "attack_node",
+        "system", "run_key", "task_id", "graph_id", "n", "m", "attack_node",
         "round_index", "prev_state", "next_state", "peer_plurality", "degree",
         *[f"in_{state}" for state in SHORT_STATES], "has_unique_plurality",
         "previous_equals_plurality", "next_equals_plurality", "switched_to_plurality",
@@ -382,14 +465,14 @@ def alignment_summary(events: pd.DataFrame) -> pd.DataFrame:
 
 def alignment_by_density(events: pd.DataFrame) -> pd.DataFrame:
     rows = []
-    for (system, m, round_index), frame in events.groupby(["system", "m", "round"]):
+    for (system, n, m, round_index), frame in events.groupby(["system", "n", "m", "round"]):
         opportunity = frame.alignment_opportunity.astype(bool)
         beneficial = frame.beneficial_opportunity.astype(bool)
         harmful = frame.harmful_opportunity.astype(bool)
         target = frame.target_opportunity.astype(bool)
         rows.append(
             {
-                "system": system,
+                "system": system, "n": int(n),
                 "m": int(m),
                 "round": int(round_index),
                 "switch_to_plurality_given_opportunity": frame.loc[opportunity, "switched_to_plurality"].mean(),
@@ -408,7 +491,7 @@ def alignment_by_density(events: pd.DataFrame) -> pd.DataFrame:
 
 
 def round_gain_loss(panel: pd.DataFrame) -> pd.DataFrame:
-    identity = ["system", "run_key", "task_id", "graph_id", "m", "attack_node"]
+    identity = ["system", "run_key", "task_id", "graph_id", "n", "m", "attack_node"]
     previous = panel[identity + ["round", "clean_state", "attack_state"]].copy()
     previous["round"] += 1
     previous = previous.rename(columns={"clean_state": "clean_prev", "attack_state": "attack_prev"})
@@ -437,7 +520,7 @@ def round_gain_loss(panel: pd.DataFrame) -> pd.DataFrame:
 
 
 def round_gain_loss_by_density(panel: pd.DataFrame) -> pd.DataFrame:
-    identity = ["system", "run_key", "task_id", "graph_id", "m", "attack_node"]
+    identity = ["system", "run_key", "task_id", "graph_id", "n", "m", "attack_node"]
     previous = panel[identity + ["round", "clean_state", "attack_state"]].copy()
     previous["round"] += 1
     previous = previous.rename(columns={"clean_state": "clean_prev", "attack_state": "attack_prev"})
@@ -445,12 +528,12 @@ def round_gain_loss_by_density(panel: pd.DataFrame) -> pd.DataFrame:
     rows = []
     for condition in ("clean", "attack"):
         src, dst = f"{condition}_prev", f"{condition}_state"
-        for keys, frame in current.groupby(["system", "m", "round"]):
+        for keys, frame in current.groupby(["system", "n", "m", "round"]):
             corrections = (frame[src].ne("C") & frame[dst].eq("C")).mean()
             corruptions = (frame[src].eq("C") & frame[dst].ne("C")).mean()
             rows.append(
                 {
-                    "system": keys[0], "m": int(keys[1]), "round": int(keys[2]),
+                    "system": keys[0], "n": int(keys[1]), "m": int(keys[2]), "round": int(keys[3]),
                     "condition": condition, "correction_mass": corrections,
                     "corruption_mass": corruptions,
                     "net_accuracy_change": corrections - corruptions,
@@ -507,7 +590,11 @@ def official_t3_reference(path: Path | None) -> pd.DataFrame:
 
 def plot_roundwise(estimates: pd.DataFrame, out: Path) -> None:
     systems = list(estimates.system.unique())
-    colors = {systems[0]: "#2878c8", systems[-1]: "#e36f0a"}
+    palette = plt.get_cmap("viridis")
+    colors = {
+        system: palette(index / max(1, len(systems) - 1))
+        for index, system in enumerate(systems)
+    }
     fig, axes = plt.subplots(1, 3, figsize=(13.5, 4.2), sharex=True)
     for ax, metric, title in zip(
         axes, ("U", "R", "L_adjusted"),
@@ -538,6 +625,26 @@ def plot_density(density: pd.DataFrame, out: Path) -> None:
             ax.set_title(f"{system}: {metric}"); ax.set_xlabel("Edges m"); ax.grid(alpha=.25)
             if col == 0: ax.set_ylabel("Accuracy / difference")
             if col == 2: ax.legend(fontsize=8)
+    fig.tight_layout(); fig.savefig(out, dpi=220); plt.close(fig)
+
+
+def plot_increment_heatmaps(increments: pd.DataFrame, out: Path) -> None:
+    systems = list(increments.system.unique())
+    fig, axes = plt.subplots(len(systems), 3, figsize=(15, 3.8 * len(systems)), squeeze=False)
+    transitions = [(0, 1), (1, 2), (2, 3)]
+    for row, system in enumerate(systems):
+        source = increments[increments.system.eq(system)]
+        for col, metric in enumerate(("U", "R", "L_adjusted")):
+            ax = axes[row, col]
+            table = source[source.metric.eq(metric)].pivot(index="to_round", columns="m", values="estimate")
+            values = table.to_numpy(float)
+            limit = max(0.01, float(np.nanmax(np.abs(values))))
+            image = ax.imshow(values, aspect="auto", cmap="RdBu_r", vmin=-limit, vmax=limit)
+            ax.set_xticks(range(len(table.columns)), table.columns)
+            ax.set_yticks(range(len(table.index)), [f"{x-1}→{x}" for x in table.index])
+            ax.set_xlabel("Edges m"); ax.set_ylabel("Round increment")
+            ax.set_title(f"{system}: Δ{metric}")
+            fig.colorbar(image, ax=ax, fraction=0.046, pad=0.04)
     fig.tight_layout(); fig.savefig(out, dpi=220); plt.close(fig)
 
 
@@ -627,9 +734,17 @@ def main() -> None:
         [best_round_counts(graphs, "graph_id"), best_round_counts(tasks, "task_id")],
         ignore_index=True,
     )
-    edge_rho = edge_associations(graphs)
     rng = np.random.default_rng(args.seed)
+    edge_rho = edge_associations(graphs, args.bootstrap_reps, rng)
     estimates, increments = bootstrap_ur(panel, args.bootstrap_reps, rng)
+    density_estimates, density_increments = bootstrap_ur_by_density(
+        panel, args.bootstrap_reps, rng
+    )
+    density_increments["q_bh_within_metric_transition"] = (
+        density_increments.groupby(
+            ["metric", "from_round", "to_round"], group_keys=False
+        )["p_boot_two_sided"].apply(bh_adjust)
+    )
     events = build_alignment_events(updates)
     alignment = alignment_summary(events)
     alignment_density = alignment_by_density(events)
@@ -649,6 +764,8 @@ def main() -> None:
     edge_rho.to_csv(args.out / "edge_metric_spearman_by_round.csv", index=False)
     estimates.to_csv(args.out / "system_roundwise_ur_task_bootstrap.csv", index=False)
     increments.to_csv(args.out / "incremental_round_effects_task_bootstrap.csv", index=False)
+    density_estimates.to_csv(args.out / "configuration_roundwise_task_bootstrap.csv", index=False)
+    density_increments.to_csv(args.out / "configuration_incremental_task_bootstrap.csv", index=False)
     events.to_parquet(args.out / "readout_alignment_events.parquet", index=False)
     alignment.to_csv(args.out / "readout_alignment_summary.csv", index=False)
     alignment_density.to_csv(args.out / "readout_alignment_by_density.csv", index=False)
@@ -659,6 +776,9 @@ def main() -> None:
 
     plot_roundwise(estimates, args.out / "roundwise_UR_loss.png")
     plot_density(density, args.out / "density_by_round_UR_loss.png")
+    plot_increment_heatmaps(
+        density_increments, args.out / "configuration_increment_heatmaps.png"
+    )
 
     audit = {
         "analysis": "roundwise-prefix-ur-alignment-v1",
