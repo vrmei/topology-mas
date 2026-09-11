@@ -64,21 +64,22 @@ class ExecutionSettings(BaseModel):
     min_p: float | None = Field(default=None, ge=0.0, le=1.0)
     presence_penalty: float | None = Field(default=None, ge=-2.0, le=2.0)
     max_output_tokens: int = Field(default=768, ge=1)
-    initial_state_policy: Literal[
-        "shared_round_zero_cache", "independent_per_run"
-    ] = "shared_round_zero_cache"
+    initial_state_policy: Literal["shared_round_zero_cache", "independent_per_run"] = (
+        "shared_round_zero_cache"
+    )
     neighbor_message_order: Literal["content_hash"] = "content_hash"
     message_order_seed: int = 0
     active_node_pruning: Literal[True] = True
     horizon_policy: Literal["fixed", "graph_depth"] = "fixed"
-    state_transition_policy: Literal[
-        "independent-resampling", "state-consistent-replay-v1"
-    ] = "independent-resampling"
+    state_transition_policy: Literal["independent-resampling", "state-consistent-replay-v1"] = (
+        "independent-resampling"
+    )
     generation_pipeline: Literal[
         "single-pass",
         "aime-private-solve-public-summary-v1",
         "single-pass-dual-channel-v1",
         "summary-protocol-v2",
+        "numeric-summary-protocol-v1",
     ] = "single-pass"
     private_max_output_tokens: int | None = Field(default=None, ge=1)
     public_summary_temperature: float | None = Field(default=None, ge=0.0, le=2.0)
@@ -109,9 +110,7 @@ class RunTrace(BaseModel):
     condition: RunCondition
     attack_mode: AttackMode | None = None
     attack_node: int | None = Field(default=None, ge=0)
-    adversarial_answer_fingerprint: str | None = Field(
-        default=None, min_length=64, max_length=64
-    )
+    adversarial_answer_fingerprint: str | None = Field(default=None, min_length=64, max_length=64)
     target_answer: str | None = None
     initial_assignment_id: str | None = None
     initial_assignment_seed: int | None = None

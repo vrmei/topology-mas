@@ -13,6 +13,7 @@ from topology_mas.execution.numeric_summary_protocol import (
     serialize_numeric_public_summary,
     validate_numeric_public_summary,
 )
+from topology_mas.execution.schemas import ExecutionSettings
 from topology_mas.models import (
     AdversarialAnswer,
     AnswerState,
@@ -36,6 +37,11 @@ def task() -> TaskInstance:
         reference_answer="5",
         oracle_type="numeric",
     )
+
+
+def test_execution_settings_register_numeric_summary_pipeline() -> None:
+    settings = ExecutionSettings(generation_pipeline=NUMERIC_SUMMARY_PROTOCOL)
+    assert settings.generation_pipeline == NUMERIC_SUMMARY_PROTOCOL
 
 
 def test_envelope_and_public_summary_preserve_numeric_answer() -> None:
