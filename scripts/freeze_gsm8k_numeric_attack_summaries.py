@@ -173,34 +173,57 @@ def main() -> None:
             )
 
         resolved = {}
+        failures = {}
         with ThreadPoolExecutor(max_workers=args.max_workers) as executor:
             futures = {executor.submit(freeze, task_id): task_id for task_id in answers}
             for future in as_completed(futures):
                 task_id = futures[future]
-                resolved[task_id] = future.result()
+                try:
+                    resolved[task_id] = future.result()
+                    status = "success"
+                except Exception as exc:
+                    failures[task_id] = {
+                        "task_id": task_id,
+                        "failure_type": type(exc).__name__,
+                        "failure_message": str(exc),
+                    }
+                    status = "technical_failure"
                 print(
                     json.dumps(
                         {
-                            "completed": len(resolved),
+                            "processed": len(resolved) + len(failures),
                             "total": len(answers),
                             "task_id": task_id,
+                            "status": status,
                             "task_pool": pool.snapshot(),
                         }
                     ),
                     flush=True,
                 )
 
-    rows = "".join(resolved[task_id].model_dump_json() + "\n" for task_id in answers)
+    rows = "".join(
+        resolved[task_id].model_dump_json() + "\n" for task_id in answers if task_id in resolved
+    )
     _atomic_write(args.output, rows)
+    failure_path = args.output.with_suffix(args.output.suffix + ".failures.jsonl")
+    failure_rows = "".join(
+        json.dumps(failures[task_id], ensure_ascii=False, sort_keys=True) + "\n"
+        for task_id in answers
+        if task_id in failures
+    )
+    _atomic_write(failure_path, failure_rows)
     print(
         json.dumps(
             {
                 "answers": len(resolved),
+                "technical_failures": len(failures),
                 "all_preserved": all(
-                    parse_numeric_answer(row.public_summary or "") == row.target_answer
+                    parse_numeric_answer(row.public_summary or "")
+                    == normalize_numeric_answer(row.target_answer)
                     for row in resolved.values()
                 ),
                 "output": str(args.output.resolve()),
+                "failure_output": str(failure_path.resolve()),
                 "task_pool": pool.snapshot(),
             },
             indent=2,
