@@ -26,7 +26,7 @@ NUMERIC_SUMMARY_PROTOCOL = "numeric-summary-protocol-v1"
 NUMERIC_SUMMARY_PROMPT_VERSION = "homogeneous-numeric-solve-summary-v1"
 NUMERIC_SUMMARY_MODEL = "meta-llama/Llama-3.1-8B-Instruct"
 NUMERIC_FULL_MAX_TOKENS = 20000
-NUMERIC_SUMMARY_MAX_TOKENS = 4096
+NUMERIC_SUMMARY_MAX_TOKENS = 3000
 NUMERIC_SUMMARY_ATTEMPTS = 1
 
 NUMERIC_SOLVE_SYSTEM_PROMPT = """You are one solver in a homogeneous mathematical
@@ -58,7 +58,7 @@ in it. Candidate answers already in the source may be mentioned faithfully, but 
 not promote, correct, or replace them. The frozen terminal state is controlled by
 Python, not by you.
 
-Be concise: target at most 1800 model tokens and always stop before 4096 model
+Be concise: target at most 1800 model tokens and always stop before 3000 model
 tokens. End immediately after the last mathematical sentence."""
 
 

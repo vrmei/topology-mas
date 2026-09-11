@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import ExitStack
 from pathlib import Path
 
-from topology_mas.execution.answers import parse_numeric_answer
+from topology_mas.execution.answers import normalize_numeric_answer, parse_numeric_answer
 from topology_mas.execution.endpoint_task_pool import EndpointTaskPoolTextGenerator
 from topology_mas.execution.inputs import load_adversarial_answer_index
 from topology_mas.execution.numeric_summary_protocol import (
@@ -99,7 +99,8 @@ def main() -> None:
         def freeze(task_id: str):
             answer = answers[task_id]
             parsed = parse_numeric_answer(answer.rationale)
-            if parsed != answer.target_answer:
+            normalized_target = normalize_numeric_answer(answer.target_answer)
+            if parsed != normalized_target:
                 raise ValueError(f"{task_id}: rationale does not parse to frozen target")
             request = TextGenerationRequest(
                 request_id=f"attack-summary-{task_id}",
@@ -109,7 +110,7 @@ def main() -> None:
                         role="user",
                         content=(
                             f"IMMUTABLE_FULL_SOLUTION:\n{answer.rationale}\n\n"
-                            f"FROZEN_FULL_PARSER_STATE: PARSED({answer.target_answer})"
+                            f"FROZEN_FULL_PARSER_STATE: PARSED({normalized_target})"
                         ),
                     ),
                 ),
@@ -145,11 +146,11 @@ def main() -> None:
                     token_counter=counter,
                 ).text
             public, public_answer, token_count = validate_numeric_public_summary(
-                serialize_numeric_public_summary(body, answer.target_answer),
-                full_answer=answer.target_answer,
+                serialize_numeric_public_summary(body, normalized_target),
+                full_answer=normalized_target,
                 token_counter=counter,
             )
-            if public_answer != answer.target_answer:
+            if public_answer != normalized_target:
                 raise AssertionError("validated attack summary changed target")
             return answer.model_copy(
                 update={

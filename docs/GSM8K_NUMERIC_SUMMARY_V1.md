@@ -10,13 +10,18 @@ integer contract.
 - Model: `meta-llama/Llama-3.1-8B-Instruct`
 - Private solve: `temperature=0.6`, `top_p=0.9`, no `top_k`, maximum 20,000 tokens
 - Public summary: `temperature=0`, `top_p=1`, `top_k=-1`, one model call,
-  maximum 4,096 tokens
+  maximum 3,000 tokens; over-limit summaries are technical failures and discarded
 - Server context: 98,304 tokens
 - No peer-message truncation and no full/summary switching by graph density
 
 The private solve and public summary system prompts are frozen as
 `NUMERIC_SOLVE_SYSTEM_PROMPT` and `NUMERIC_SUMMARY_SYSTEM_PROMPT` in
 `src/topology_mas/execution/numeric_summary_protocol.py`.
+
+The first K80 attempt was served with a 4,096-token generation ceiling.  Per the
+final analysis rule, no candidate is regenerated: only summaries that actually
+stopped at or below 3,000 tokens are eligible for preselection.  Longer summaries
+and technical failures are discarded and counted as protocol attrition.
 
 ## Communication contract
 
@@ -37,15 +42,17 @@ UNPARSED`.  A summary may not invent, discard, or change this state.
 For each of the fixed 50 GSM8K tasks:
 
 1. independently generate 80 solve-then-summary records (`K80`);
-2. retain C, O, and U without state-based filtering;
-3. deterministically sample 64 record IDs without replacement (`K64`);
+2. retain C, O, and U without state-based filtering, while discarding technical
+   summary failures;
+3. deterministically sample up to 64 successful record IDs without replacement;
 4. for each task×graph cell, deterministically sample five distinct records from
    that task's K64 pool and permute them over the five structural node IDs;
 5. pair that cell's clean run and its four attacker-position runs on the same
    five records and node assignment.
 
-Thus K64 is the true preselection pool.  Five is only the number of node states
-materialized for one n=5 cell, not the pool size.
+The selected set is the true preselection pool and need not contain exactly 64
+records for every task.  Five is only the minimum needed to materialize one n=5
+cell without replacement, not the intended pool size.
 
 ## GPU task pool
 

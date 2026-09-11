@@ -91,23 +91,35 @@ def main() -> None:
             cache=SummaryProtocolV3Cache(args.cache_dir),
             token_counter=counter,
         )
-        records = ScalableRoundZeroPoolGenerator(
-            generator,
-            config=config,
-            store=ScalableRoundZeroPoolStore(args.output_dir),
-            prompt_builder=lambda task: protocol.build_messages(
-                task, previous_output=None, incoming_messages=()
-            ),
-            answer_parser=lambda raw, finish: protocol.parse_answer(raw, finish_reason=finish),
-            max_workers=args.max_workers,
-        ).generate(tasks)
+        store = ScalableRoundZeroPoolStore(args.output_dir)
+        generation_error = None
+        try:
+            records = ScalableRoundZeroPoolGenerator(
+                generator,
+                config=config,
+                store=store,
+                prompt_builder=lambda task: protocol.build_messages(
+                    task, previous_output=None, incoming_messages=()
+                ),
+                answer_parser=lambda raw, finish: protocol.parse_answer(raw, finish_reason=finish),
+                max_workers=args.max_workers,
+            ).generate(tasks)
+        except Exception as exc:
+            generation_error = {"type": type(exc).__name__, "message": str(exc)}
+            _, records = store.load_available()
+    available_by_task = {
+        task.task_id: sum(row.task_id == task.task_id for row in records) for task in tasks
+    }
     print(
         json.dumps(
             {
                 "protocol": NUMERIC_SUMMARY_PROTOCOL,
                 "tasks": len(tasks),
                 "responses": len(records),
+                "intended_responses": len(tasks) * args.responses_per_task,
                 "responses_per_task": args.responses_per_task,
+                "available_by_task": available_by_task,
+                "minimum_available_per_task": min(available_by_task.values()),
                 "states": {
                     state.value: sum(row.answer_state is state for row in records)
                     for state in (
@@ -121,6 +133,7 @@ def main() -> None:
                     for row in records
                 ),
                 "endpoint_task_pool": backend_pool.snapshot(),
+                "generation_error": generation_error,
             },
             indent=2,
         )

@@ -28,6 +28,7 @@ from topology_mas.execution.inputs import load_adversarial_answer_index
 from topology_mas.execution.numeric_summary_protocol import (
     NUMERIC_FULL_MAX_TOKENS,
     NUMERIC_SUMMARY_MODEL,
+    NUMERIC_SUMMARY_PROMPT_VERSION,
     NUMERIC_SUMMARY_PROTOCOL,
     SolveThenSummarizeNumericGenerator,
     numeric_summary_protocol,
@@ -116,7 +117,7 @@ def main() -> None:
     if not smoke and edge_histogram != expected_histogram:
         raise ValueError(f"unexpected full61 edge histogram: {edge_histogram}")
 
-    pool_manifest, all_pool_rows = ScalableRoundZeroPoolStore(args.round_zero_pool).load_complete()
+    pool_manifest, all_pool_rows = ScalableRoundZeroPoolStore(args.round_zero_pool).load_available()
     task_ids = tuple(task.task_id for task in tasks)
     if not smoke and pool_manifest.task_ids != task_ids:
         raise ValueError("K80 pool task IDs/order differ from the frozen 50 tasks")
@@ -127,19 +128,20 @@ def main() -> None:
     k64 = json.loads(args.k64_index.read_text(encoding="utf-8"))
     if k64.get("source_pool_version") != pool_manifest.pool_version:
         raise ValueError("K64 index belongs to a different K80 pool")
-    if k64.get("selected_responses_per_task") != 64:
-        raise ValueError("frozen preselection index must use K64")
+    if k64.get("maximum_selected_responses_per_task") != 64:
+        raise ValueError("frozen preselection index must use at most K64")
     if not smoke and tuple(k64.get("task_ids", ())) != task_ids:
         raise ValueError("K64 task IDs/order differ from the frozen 50 tasks")
     per_task_ids = k64.get("selected_pool_response_ids", {})
-    if set(per_task_ids) != set(task_ids) or any(
-        len(ids) != 64 or len(set(ids)) != 64 for ids in per_task_ids.values()
+    if set(per_task_ids) != set(pool_manifest.task_ids) or any(
+        len(ids) < 5 or len(ids) > 64 or len(set(ids)) != len(ids) for ids in per_task_ids.values()
     ):
-        raise ValueError("K64 index must contain 64 unique IDs for every task")
+        raise ValueError("preselection index must contain 5..64 unique IDs per task")
     selected_ids = {response_id for task_id in task_ids for response_id in per_task_ids[task_id]}
     pool_rows = tuple(row for row in all_pool_rows if row.pool_response_id in selected_ids)
-    if len(pool_rows) != len(tasks) * 64:
-        raise ValueError("K64 filtering did not produce exactly 64 responses per selected task")
+    expected_selected = sum(len(per_task_ids[task_id]) for task_id in task_ids)
+    if len(pool_rows) != expected_selected:
+        raise ValueError("preselection filtering lost one or more selected responses")
     if not all(
         row.provider_metadata.get("generation_pipeline") == NUMERIC_SUMMARY_PROTOCOL
         and row.provider_metadata.get("summary_validation_passed") is True
@@ -251,7 +253,7 @@ def main() -> None:
     manifest = BatchExecutionManifest(
         config=config,
         execution_settings=settings,
-        prompt_version="homogeneous-numeric-solve-summary-v1",
+        prompt_version=NUMERIC_SUMMARY_PROMPT_VERSION,
         node_count=5,
         readout_node=4,
         max_rounds=3,
@@ -286,8 +288,7 @@ def main() -> None:
             "k80_pool_version": pool_manifest.pool_version,
             "k64_fingerprint": k64["fingerprint"],
             "policy": (
-                "independent deterministic K5 draw per task-graph; "
-                "paired across clean/attack"
+                "independent deterministic K5 draw per task-graph; paired across clean/attack"
             ),
             "draw_seed": args.draw_seed,
             "cells": {

@@ -214,9 +214,7 @@ class ScalableRoundZeroPoolStore:
             pool_version=pool_version,
             config=config,
             task_ids=task_ids,
-            task_fingerprint=_fingerprint(
-                [task.model_dump(mode="json") for task in tasks]
-            ),
+            task_fingerprint=_fingerprint([task.model_dump(mode="json") for task in tasks]),
             intended_response_count=len(tasks) * config.responses_per_task,
         )
         if self.manifest_path.exists():
@@ -239,9 +237,7 @@ class ScalableRoundZeroPoolStore:
         path = self.response_path(task_id=task_id, pool_slot=pool_slot)
         if not path.exists():
             return None
-        return ScalableRoundZeroPoolResponse.model_validate_json(
-            path.read_text(encoding="utf-8")
-        )
+        return ScalableRoundZeroPoolResponse.model_validate_json(path.read_text(encoding="utf-8"))
 
     def save(self, response: ScalableRoundZeroPoolResponse) -> Path:
         path = self.response_path(task_id=response.task_id, pool_slot=response.pool_slot)
@@ -272,14 +268,31 @@ class ScalableRoundZeroPoolStore:
                     responses.append(response)
         if missing:
             preview = ", ".join(missing[:5])
-            raise ScalableRoundZeroPoolConflictError(
-                f"pool is incomplete: {preview}"
-            )
+            raise ScalableRoundZeroPoolConflictError(f"pool is incomplete: {preview}")
         if len(responses) != manifest.intended_response_count:
-            raise ScalableRoundZeroPoolConflictError(
-                "pool response count differs from manifest"
-            )
+            raise ScalableRoundZeroPoolConflictError("pool response count differs from manifest")
         return manifest, tuple(responses)
+
+    def load_available(
+        self,
+    ) -> tuple[
+        ScalableRoundZeroPoolManifest,
+        tuple[ScalableRoundZeroPoolResponse, ...],
+    ]:
+        """Load successful slots without requiring every intended attempt to pass."""
+
+        if not self.manifest_path.exists():
+            raise ScalableRoundZeroPoolConflictError("pool manifest is missing")
+        manifest = ScalableRoundZeroPoolManifest.model_validate_json(
+            self.manifest_path.read_text(encoding="utf-8")
+        )
+        responses = tuple(
+            response
+            for task_id in manifest.task_ids
+            for slot in range(manifest.config.responses_per_task)
+            if (response := self.load(task_id=task_id, pool_slot=slot)) is not None
+        )
+        return manifest, responses
 
 
 class ScalableRoundZeroPoolGenerator:
@@ -308,11 +321,7 @@ class ScalableRoundZeroPoolGenerator:
         self, tasks: tuple[TaskInstance, ...]
     ) -> tuple[ScalableRoundZeroPoolResponse, ...]:
         manifest = self.store.initialize(config=self.config, tasks=tasks)
-        jobs = [
-            (task, slot)
-            for task in tasks
-            for slot in range(self.config.responses_per_task)
-        ]
+        jobs = [(task, slot) for task in tasks for slot in range(self.config.responses_per_task)]
         resolved: list[ScalableRoundZeroPoolResponse | None] = [None] * len(jobs)
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             futures: dict[Future[ScalableRoundZeroPoolResponse], int] = {
@@ -375,9 +384,7 @@ class ScalableRoundZeroPoolGenerator:
         response = ScalableRoundZeroPoolResponse(
             pool_version=pool_version,
             task_id=task.task_id,
-            pool_response_id=stable_id(
-                "pool-response", pool_version, task.task_id, pool_slot
-            ),
+            pool_response_id=stable_id("pool-response", pool_version, task.task_id, pool_slot),
             pool_slot=pool_slot,
             generation_seed=generation_seed,
             raw_response=result.raw_text,
@@ -427,7 +434,8 @@ def build_round_zero_draws(
     eligible = tuple(
         response
         for response in pool_responses
-        if response.task_id == task_id and response.pool_version == pool_version
+        if response.task_id == task_id
+        and response.pool_version == pool_version
         and (
             required_generation_pipeline is None
             or (
@@ -464,9 +472,7 @@ def build_round_zero_draws(
                 for response in sorted(
                     eligible,
                     key=lambda response: (
-                        stable_integer(
-                            "pool-sample", selection_seed, response.pool_response_id
-                        ),
+                        stable_integer("pool-sample", selection_seed, response.pool_response_id),
                         response.pool_response_id,
                     ),
                 )[:node_count]
@@ -488,9 +494,7 @@ def build_round_zero_draws(
     return tuple(draws)
 
 
-def assign_draw_to_graph(
-    draw: RoundZeroDraw, graph: GraphSpec
-) -> GraphRoundZeroAssignment:
+def assign_draw_to_graph(draw: RoundZeroDraw, graph: GraphSpec) -> GraphRoundZeroAssignment:
     """Permute one fixed draw over structural nodes using the graph fingerprint."""
 
     if draw.mode != "pooled":
@@ -498,9 +502,7 @@ def assign_draw_to_graph(
     if graph.node_count != draw.node_count:
         raise ValueError("graph node count differs from draw node count")
     graph_fingerprint = _fingerprint(graph.model_dump(mode="json"))
-    assignment_seed = stable_integer(
-        "graph-pool-assignment", draw.draw_id, graph_fingerprint
-    )
+    assignment_seed = stable_integer("graph-pool-assignment", draw.draw_id, graph_fingerprint)
     node_order = tuple(
         sorted(
             draw.selected_pool_response_ids,
@@ -574,8 +576,7 @@ def materialize_engine_inputs(
         for slot, response_id in enumerate(canonical_ids)
     )
     mapping = tuple(
-        slot_by_id[response_id]
-        for response_id in graph_assignment.node_to_pool_response_id
+        slot_by_id[response_id] for response_id in graph_assignment.node_to_pool_response_id
     )
     assignment = InitialStateAssignment(
         assignment_id=graph_assignment.assignment_id,
