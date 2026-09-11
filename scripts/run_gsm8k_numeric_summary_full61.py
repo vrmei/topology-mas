@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run n=5 GSM8K full61 clean/Fixed-attack under numeric summary v1."""
+"""Run frozen GSM8K graph families under numeric summary v1."""
 
 from __future__ import annotations
 
@@ -47,6 +47,11 @@ from topology_mas.execution.summary_protocol_v3 import SummaryProtocolV3Cache
 from topology_mas.models import AttackMode, RunCondition
 from topology_mas.topology.io import read_graphs_jsonl
 
+EXPECTED_GRAPH_HISTOGRAMS = {
+    5: {**{m: 5 for m in range(4, 16)}, 16: 1},
+    6: {**{m: 5 for m in range(5, 25, 2)}, 25: 1},
+}
+
 
 def _write_json(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -93,6 +98,7 @@ def main() -> None:
     parser.add_argument("--draw-seed", type=int, default=20260911)
     parser.add_argument("--smoke-task-limit", type=int)
     parser.add_argument("--smoke-graph-limit", type=int)
+    parser.add_argument("--expected-node-count", type=int, choices=tuple(EXPECTED_GRAPH_HISTOGRAMS))
     args = parser.parse_args()
 
     tasks = read_tasks_jsonl(args.tasks)
@@ -104,18 +110,28 @@ def main() -> None:
         graphs = graphs[: args.smoke_graph_limit]
     if not smoke and len(tasks) != 50:
         raise ValueError(f"frozen GSM8K experiment requires 50 tasks, got {len(tasks)}")
-    if not smoke and len(graphs) != 61:
-        raise ValueError(f"full61 requires 61 graphs, got {len(graphs)}")
-    if any(graph.node_count != 5 or graph.max_rounds != 3 for graph in graphs):
-        raise ValueError("every graph must use n=5, H=3")
-    if any(graph.readout_node != 4 for graph in graphs):
-        raise ValueError("the frozen n=5 graph family requires readout node 4")
+    if not graphs:
+        raise ValueError("graph family is empty")
+    node_count = graphs[0].node_count
+    readout_node = node_count - 1
+    if args.expected_node_count is not None and node_count != args.expected_node_count:
+        raise ValueError(
+            f"expected n={args.expected_node_count}, but graph family uses n={node_count}"
+        )
+    if node_count not in EXPECTED_GRAPH_HISTOGRAMS:
+        raise ValueError(f"no frozen graph-family contract is registered for n={node_count}")
+    if any(graph.node_count != node_count or graph.max_rounds != 3 for graph in graphs):
+        raise ValueError(f"every graph must use n={node_count}, H=3")
+    if any(graph.readout_node != readout_node for graph in graphs):
+        raise ValueError(
+            f"the frozen n={node_count} graph family requires readout node {readout_node}"
+        )
     edge_histogram = {
         m: sum(len(g.edges) == m for g in graphs) for m in sorted({len(g.edges) for g in graphs})
     }
-    expected_histogram = {**{m: 5 for m in range(4, 16)}, 16: 1}
+    expected_histogram = EXPECTED_GRAPH_HISTOGRAMS[node_count]
     if not smoke and edge_histogram != expected_histogram:
-        raise ValueError(f"unexpected full61 edge histogram: {edge_histogram}")
+        raise ValueError(f"unexpected n={node_count} edge histogram: {edge_histogram}")
 
     pool_manifest, all_pool_rows = ScalableRoundZeroPoolStore(args.round_zero_pool).load_available()
     task_ids = tuple(task.task_id for task in tasks)
@@ -134,9 +150,10 @@ def main() -> None:
         raise ValueError("K64 task IDs/order differ from the frozen 50 tasks")
     per_task_ids = k64.get("selected_pool_response_ids", {})
     if set(per_task_ids) != set(pool_manifest.task_ids) or any(
-        len(ids) < 5 or len(ids) > 64 or len(set(ids)) != len(ids) for ids in per_task_ids.values()
+        len(ids) < node_count or len(ids) > 64 or len(set(ids)) != len(ids)
+        for ids in per_task_ids.values()
     ):
-        raise ValueError("preselection index must contain 5..64 unique IDs per task")
+        raise ValueError(f"preselection index must contain {node_count}..64 unique IDs per task")
     selected_ids = {response_id for task_id in task_ids for response_id in per_task_ids[task_id]}
     pool_rows = tuple(row for row in all_pool_rows if row.pool_response_id in selected_ids)
     expected_selected = sum(len(per_task_ids[task_id]) for task_id in task_ids)
@@ -170,7 +187,7 @@ def main() -> None:
             draw = build_round_zero_draws(
                 pool_version=pool_manifest.pool_version,
                 task_id=task.task_id,
-                node_count=5,
+                node_count=node_count,
                 replicate_count=1,
                 pool_responses=pool_rows,
                 draw_seed=stable_integer(
@@ -202,7 +219,11 @@ def main() -> None:
     if args.condition in {"clean", "all"}:
         conditions.append((RunCondition.CLEAN, None))
     if args.condition in {"attack", "all"}:
-        conditions.extend((RunCondition.ATTACK, node_id) for node_id in range(4))
+        conditions.extend(
+            (RunCondition.ATTACK, node_id)
+            for node_id in range(node_count)
+            if node_id != readout_node
+        )
     plan = tuple(
         ExecutionRunSpec(
             run_spec_id=stable_id(
@@ -254,8 +275,8 @@ def main() -> None:
         config=config,
         execution_settings=settings,
         prompt_version=NUMERIC_SUMMARY_PROMPT_VERSION,
-        node_count=5,
-        readout_node=4,
+        node_count=node_count,
+        readout_node=readout_node,
         max_rounds=3,
         task_ids=tuple(task.task_id for task in tasks),
         graph_ids=tuple(graph.graph_id for graph in graphs),
