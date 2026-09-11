@@ -15,6 +15,9 @@ _GSM8K_MARKER = re.compile(r"####\s*([^\s]+)\s*$")
 _BOXED_ANSWER = re.compile(
     r"(?im)^\s*(?:\\\[\s*)?\\boxed\{([^{}]+)\}(?:\s*\\\])?\s*$"
 )
+_INLINE_BOXED_VALUE = re.compile(
+    r"^\s*\$?\s*\\boxed\{([^{}]+)\}\s*\$?\s*$"
+)
 
 
 def normalize_numeric_answer(value: str) -> str:
@@ -37,8 +40,12 @@ def parse_numeric_answer(raw_text: str) -> str | None:
         matches = list(_BOXED_ANSWER.finditer(raw_text))
     if not matches:
         return None
+    candidate = matches[-1].group(1)
+    boxed = _INLINE_BOXED_VALUE.fullmatch(candidate)
+    if boxed is not None:
+        candidate = boxed.group(1)
     try:
-        return normalize_numeric_answer(matches[-1].group(1))
+        return normalize_numeric_answer(candidate)
     except (ValueError, ZeroDivisionError):
         return None
 

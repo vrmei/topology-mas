@@ -454,12 +454,14 @@ class SynchronousExecutionEngine:
                                 "aime-private-solve-public-summary-v1",
                                 "single-pass-dual-channel-v1",
                                 "summary-protocol-v2",
+                                "numeric-summary-protocol-v1",
                             },
                             "message_compression": self.settings.generation_pipeline
                             in {
                                 "aime-private-solve-public-summary-v1",
                                 "single-pass-dual-channel-v1",
                                 "summary-protocol-v2",
+                                "numeric-summary-protocol-v1",
                             },
                         },
                     },
