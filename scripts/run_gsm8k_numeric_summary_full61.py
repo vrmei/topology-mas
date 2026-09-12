@@ -53,6 +53,10 @@ EXPECTED_GRAPH_HISTOGRAMS = {
 }
 
 
+class MissingFrozenAttackSummaryError(RuntimeError):
+    """The task has no protocol-valid public attack message."""
+
+
 def _write_json(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary: Path | None = None
@@ -172,10 +176,11 @@ def main() -> None:
         else {}
     )
     if args.condition in {"attack", "all"}:
-        if not {task.task_id for task in tasks}.issubset(answers):
-            raise ValueError("attack execution requires one frozen answer for every task")
+        if args.adversarial_answers is None:
+            raise ValueError("attack execution requires a frozen-answer artifact")
         if any(answer.public_summary is None for answer in answers.values()):
             raise ValueError("every fixed attacker must have a frozen public summary")
+    missing_attack_task_ids = tuple(task.task_id for task in tasks if task.task_id not in answers)
 
     # A fresh deterministic K64->K5 draw is made for each task×graph.  Clean and
     # all attacker positions within that cell share the same draw and assignment.
@@ -321,6 +326,20 @@ def main() -> None:
             },
         },
     )
+    _write_json(
+        args.output_dir / "attack_source_audit.json",
+        {
+            "available_task_ids": sorted(answers),
+            "missing_task_ids": list(missing_attack_task_ids),
+            "missing_cell_policy": (
+                "technical_missingness; no model call, no O relabel, no regeneration"
+            ),
+            "missing_attack_cells": sum(
+                spec.condition is RunCondition.ATTACK and spec.task_id in missing_attack_task_ids
+                for spec in plan
+            ),
+        },
+    )
 
     task_by_id = {task.task_id: task for task in tasks}
     graph_by_id = {graph.graph_id: graph for graph in graphs}
@@ -369,6 +388,19 @@ def main() -> None:
             cached = store.load(spec)
             if cached is not None:
                 return {"run_spec_id": spec.run_spec_id, "status": "cached"}
+            if spec.condition is RunCondition.ATTACK and spec.task_id not in answers:
+                exc = MissingFrozenAttackSummaryError(
+                    f"{spec.task_id} has no protocol-valid frozen attack summary"
+                )
+                path = store.save_failure(spec, exc)
+                return {
+                    "run_spec_id": spec.run_spec_id,
+                    "status": "failed",
+                    "failure_path": str(path),
+                    "elapsed_seconds": 0.0,
+                    "exception_type": type(exc).__name__,
+                    "message": str(exc),
+                }
             key = (spec.task_id, spec.graph_id)
             seed, records, initial_assignment = materialized[key]
             endpoint_index, engine = slots.get()
