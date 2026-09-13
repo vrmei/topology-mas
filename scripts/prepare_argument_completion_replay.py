@@ -11,7 +11,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from topology_mas.execution.answers import parse_numeric_answer
+from topology_mas.execution.answers import normalize_numeric_answer, parse_numeric_answer
 from topology_mas.execution.prompts import PROMPT_VERSION, build_node_messages
 from topology_mas.execution.schemas import ChatMessage
 from topology_mas.execution.seeding import stable_id, stable_integer
@@ -219,8 +219,12 @@ def main() -> None:
         base["length_control"] = length_matched_control(tokenizer, target, ew_tokens)
         for condition, text in base.items():
             parsed = parse_numeric_answer(text)
-            if parsed != target:
-                raise ValueError(f"condition {condition} failed target preservation for {task_id}: {parsed!r} != {target!r}")
+            normalized_target = normalize_numeric_answer(target)
+            if parsed != normalized_target:
+                raise ValueError(
+                    f"condition {condition} failed target preservation for {task_id}: "
+                    f"{parsed!r} != {normalized_target!r} (raw target={target!r})"
+                )
             stimulus_id = stable_id(EXPERIMENT_VERSION, task_id, condition, text)
             stimuli[stimulus_id] = {
                 "stimulus_id": stimulus_id,
